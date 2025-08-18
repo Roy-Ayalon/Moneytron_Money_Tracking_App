@@ -193,7 +193,7 @@ MoneyTron/
    cd MoneyTron
    py -m venv .venv
    .\.venv\Scripts\activate
-   pip install -U pip pyinstaller flask waitress
+   pip install -U flask waitress jinja2 werkzeug click itsdangerous markupsafe
    ```
 
 2. **Build the single-file app (cmd)**
