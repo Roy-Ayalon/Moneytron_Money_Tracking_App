@@ -198,12 +198,20 @@ MoneyTron/
 
 2. **Build the single-file app (cmd)**
    ```bat
-   .venv\Scripts\pyinstaller `
-   --name MoneyTron `
-   --onefile `
-   --add-data "client;client" `
-   --add-data "users;users" `
-   server\new_app.py
+     pyinstaller `
+    --noconfirm --clean `
+    --name MoneyTron `
+    --onefile `
+    --add-data "client;client" `
+    --add-data "users;users" `
+    --collect-all flask `
+    --collect-all jinja2 `
+    --collect-all werkzeug `
+    --collect-all click `
+    --collect-all itsdangerous `
+    --collect-all markupsafe `
+    --collect-all waitress `
+    server\new_app.py
    ```
 
 3. **Move the executable next to folders (cmd)**
@@ -216,17 +224,46 @@ MoneyTron/
 
    ```bat
    @echo off
-   setlocal
-   cd /d "%~dp0"
-
-   rem Kill anything on port 5003 (ignore errors)
-   for /f "tokens=5" %%a in ('netstat -ano ^| findstr :5003') do taskkill /PID %%a /F >nul 2>&1
-
-   rem Open browser after a short delay in a separate shell
-   start "" cmd /c "timeout /t 2 >nul & start "" http://127.0.0.1:5003/"
-
-   rem Run the app (blocks)
-   MoneyTron.exe
+    cd /d "%~dp0"
+    
+    echo ============================================
+    echo [Start] MoneyTron launcher
+    echo [Info ] Working dir: %cd%
+    echo ============================================
+    
+    REM Kill anything still running on port 5003
+    echo [Step ] Checking for existing process on port 5003...
+    for /f "tokens=5" %%a in ('netstat -ano ^| findstr :5003') do (
+      echo [Kill ] Terminating PID %%a ...
+      taskkill /F /PID %%a >nul 2>&1
+    )
+    
+    REM Start MoneyTron
+    echo [Step ] Launching MoneyTron.exe ...
+    start "" /b MoneyTron.exe
+    
+    REM Wait up to 40 seconds for server to be ready
+    setlocal enabledelayedexpansion
+    set COUNT=0
+    :loop
+      echo [Wait ] Attempt !COUNT!/40 ... probing http://127.0.0.1:5003
+      powershell -command "try {Invoke-WebRequest -Uri http://127.0.0.1:5003 -UseBasicParsing | Out-Null; exit 0} catch {exit 1}"
+      if !errorlevel! equ 0 (
+        echo [OK   ] Server is responding on port 5003.
+        echo [Step ] Opening browser...
+        start "" http://127.0.0.1:5003
+        echo [Done ] MoneyTron launched successfully.
+        pause
+        exit /b 0
+      )
+      set /a COUNT+=1
+      if !COUNT! geq 40 (
+        echo [ERROR] Server did not start after 40s. Check moneytron.log
+        pause
+        exit /b 1
+      )
+      timeout /t 1 /nobreak >nul
+    goto loop
    ```
 
 5. **Prepare a zip for family**
@@ -363,14 +400,46 @@ chmod +x start.command
 
 ```bat
 @echo off
-setlocal
 cd /d "%~dp0"
 
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr :5003') do taskkill /PID %%a /F >nul 2>&1
+echo ============================================
+echo [Start] MoneyTron launcher
+echo [Info ] Working dir: %cd%
+echo ============================================
 
-start "" cmd /c "timeout /t 2 >nul & start "" http://127.0.0.1:5003/"
+REM Kill anything still running on port 5003
+echo [Step ] Checking for existing process on port 5003...
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :5003') do (
+  echo [Kill ] Terminating PID %%a ...
+  taskkill /F /PID %%a >nul 2>&1
+)
 
-MoneyTron.exe
+REM Start MoneyTron
+echo [Step ] Launching MoneyTron.exe ...
+start "" /b MoneyTron.exe
+
+REM Wait up to 40 seconds for server to be ready
+setlocal enabledelayedexpansion
+set COUNT=0
+:loop
+  echo [Wait ] Attempt !COUNT!/40 ... probing http://127.0.0.1:5003
+  powershell -command "try {Invoke-WebRequest -Uri http://127.0.0.1:5003 -UseBasicParsing | Out-Null; exit 0} catch {exit 1}"
+  if !errorlevel! equ 0 (
+    echo [OK   ] Server is responding on port 5003.
+    echo [Step ] Opening browser...
+    start "" http://127.0.0.1:5003
+    echo [Done ] MoneyTron launched successfully.
+    pause
+    exit /b 0
+  )
+  set /a COUNT+=1
+  if !COUNT! geq 40 (
+    echo [ERROR] Server did not start after 40s. Check moneytron.log
+    pause
+    exit /b 1
+  )
+  timeout /t 1 /nobreak >nul
+goto loop
 ```
 
 ---
