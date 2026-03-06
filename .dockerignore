@@ -1,0 +1,35 @@
+# Ignore dev/build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.spec
+nul
+*.log
+
+# Temp claude files
+tmpclaude-*
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Docs & scripts not needed in container
+README.md
+UPGRADE_SUMMARY.md
+DEPLOY_GUIDE.md
+start.bat
+start.command
+videos/
+screenshots/
+deploy.ps1

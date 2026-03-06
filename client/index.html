@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>MoneyTron — Multi-User Money Tracker</title>
+  <title>MoneyTron - Multi-User Money Tracker</title>
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,9 +16,8 @@
   <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
 
-  <!-- Day.js + XLSX -->
+  <!-- Day.js (XLSX removed — parsing is now server-side) -->
   <script src="https://unpkg.com/dayjs@1/dayjs.min.js"></script>
-  <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://unpkg.com/dayjs@1/plugin/customParseFormat.js"></script>
   <script>
     dayjs.extend(window.dayjs_plugin_customParseFormat);
@@ -47,7 +46,7 @@
       background-attachment: fixed;
       overflow-x: hidden;
     }
-    .wrap{ width:min(1280px,96vw); margin:24px auto; padding:24px; }
+    .wrap{ width:min(1600px,98vw); margin:24px auto; padding:24px; }
     .title{ font-size:44px; font-weight:800; margin:0 0 16px; text-align:center; color:#eae9ff; text-shadow:0 2px 18px rgba(0,0,0,.35); }
     .frame{ background:rgba(255,255,255,.88); backdrop-filter: blur(6px); border-radius:18px; padding:16px; margin-top:12px; }
     .panel{ background:var(--card); border-radius:16px; padding:20px 24px; box-shadow:0 10px 20px rgb(8 24 71 / 8%); max-width:100%; overflow:auto; }
@@ -88,7 +87,7 @@
     .btn.danger{ background:#fee2e2; color:#991b1b; }
     .btn[disabled]{ opacity:.55; cursor:not-allowed; box-shadow:none; filter:grayscale(.1); }
 
-    table{ width:100%; border-collapse:separate; border-spacing:0 8px; }
+    table{ width:100%; border-collapse:separate; border-spacing:0 8px; table-layout:auto; font-size:13px; }
     thead th{ font-size:13px; letter-spacing:.3px; font-weight:800; color:#f2f1ff;
       background:linear-gradient(180deg,#6b46c1,#49308d); padding:10px 12px; user-select:none; cursor:pointer; }
     thead th.nosort{ cursor:default; }
@@ -132,28 +131,255 @@
     @media (max-width:700px){ .dm-grid{ grid-template-columns:1fr; } .dm-right{ align-items:flex-start; } }
     .danger-caption{ display:inline-flex; align-items:center; gap:8px; color:#b45309; background:#fff7ed; border:1px dashed #fcd19c; border-radius:10px; padding:8px 10px; font-weight:700; width:max-content; }
 
-    .w-tag{ width:75px; min-width:75px; }
-    .w-date{ min-width:160px; }
-    .w-name{ min-width:150px; max-width:180px; }
-    .cell-hscroll{ max-width:180px; margin:0 auto; overflow-x:hidden; white-space:nowrap; }
+    .w-tag{ width:70px; min-width:70px; }
+    .w-date{ min-width:120px; }
+    .w-name{ min-width:110px; max-width:160px; }
+    .cell-hscroll{ max-width:160px; margin:0 auto; overflow-x:hidden; white-space:nowrap; }
     .cell-hscroll:hover{ overflow-x:auto; }
     .ro-name{ display:inline-block; padding:8px 10px; }
     input.fit{ width:max-content; text-align:center; }
-    .w-amt{ min-width:150px; }
-    .w-debit{ min-width:150px; }
-    .num-input{ width:120px; }
-    .w-cat{ min-width:132px; }
-    .w-sub{ min-width:150px; }
-    .w-notes{ min-width:240px; }
+    .w-amt{ min-width:110px; }
+    .w-debit{ min-width:110px; }
+    .num-input{ width:100px; }
+    .w-cat{ min-width:100px; }
+    .w-sub{ min-width:110px; }
+    .w-notes{ min-width:140px; }
     .ro-tag{ display:inline-block; min-width:40px; padding:6px 10px; border-radius:10px; background:#eef2ff; color:#352b7a; font-weight:800; text-align:center; }
+
+    /* ── Upload Modal ── */
+    .modal-overlay{
+      position:fixed; inset:0; z-index:9999;
+      background:rgba(30,20,60,.55); backdrop-filter:blur(6px);
+      display:flex; align-items:center; justify-content:center;
+      animation:fadeIn .2s ease;
+    }
+    @keyframes fadeIn{ from{opacity:0} to{opacity:1} }
+    @keyframes slideUp{ from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes searchBlink{ 0%,100%{background:#fef9c3;box-shadow:0 0 8px rgba(250,204,21,.5)} 50%{background:#fef08a;box-shadow:0 0 16px rgba(250,204,21,.8)} }
+    .search-highlight{ animation: searchBlink 1.2s ease-in-out infinite; }
+    .cat-card.search-highlight{ border:2px solid #facc15; }
+    .chip.search-highlight{ background:#fef08a !important; color:#713f12 !important; border:1.5px solid #facc15; }
+    .modal-card{
+      background:#fff; border-radius:20px; padding:32px 36px; width:min(440px,92vw);
+      box-shadow:0 24px 64px rgba(30,20,70,.28), 0 0 0 1px rgba(255,255,255,.12);
+      animation:slideUp .25s ease;
+    }
+    .modal-card h3{ margin:0 0 4px; font-size:22px; font-weight:800; color:#2c2761; }
+    .modal-card label{ display:block; font-weight:700; font-size:14px; color:#30334b; margin:14px 0 6px; }
+    .modal-card select,
+    .modal-card input[type='number']{ width:100%; padding:10px 14px; border-radius:12px; border:1.5px solid #e0dff5; font-size:15px; font-family:inherit; text-align:center; transition:border-color .15s; }
+    .modal-card select:focus,
+    .modal-card input[type='number']:focus{ outline:none; border-color:#7c3aed; box-shadow:0 0 0 3px rgba(124,58,237,.15); }
+    .modal-actions{ display:flex; gap:12px; justify-content:flex-end; margin-top:22px; }
+
+    /* ── Enhanced Login ── */
+    .login-card{
+      max-width:480px; margin:40px auto 0; padding:44px 40px 38px;
+      background:rgba(255,255,255,.92); backdrop-filter:blur(14px);
+      border-radius:24px; box-shadow:0 20px 60px rgba(30,15,70,.22);
+      text-align:center;
+    }
+    .login-card h2{ margin:0 0 6px; font-size:26px; font-weight:800; color:#2c2761; }
+    .login-card .login-sub{ color:#667085; font-size:14px; margin-bottom:24px; }
+    .login-card input[type='text'],
+    .login-card input[type='password']{
+      width:100%; padding:14px 18px; border-radius:14px; border:1.5px solid #e0dff5;
+      font-size:16px; text-align:center; font-family:inherit;
+      transition:border-color .15s, box-shadow .15s;
+    }
+    .login-card input[type='text']:focus,
+    .login-card input[type='password']:focus{ outline:none; border-color:#7c3aed; box-shadow:0 0 0 4px rgba(124,58,237,.15); }
+    .login-card .pill{ margin-top:18px; padding:14px 40px; font-size:16px; width:100%; border-radius:14px; }
+
+    /* ── Enhanced Toast / Status ── */
+    .toast-bar{
+      padding:12px 18px; border-radius:14px; font-weight:700; font-size:14px;
+      display:flex; align-items:center; gap:10px; margin-bottom:14px;
+      background:linear-gradient(135deg,#ede9fe,#f5f3ff); color:#5b21b6;
+      border:1px solid #ddd6fe; box-shadow:0 2px 8px rgba(91,33,182,.08);
+    }
+
+    /* ── Polish Overrides ── */
+    body{
+      background: linear-gradient(160deg, #1e1145 0%, #3b1d8e 30%, #6d28d9 55%, #7c3aed 75%, #a78bfa 100%);
+      background-attachment:fixed;
+    }
+    .title{ font-size:46px; font-weight:800; letter-spacing:-.5px; text-shadow:0 3px 24px rgba(0,0,0,.4); }
+    .frame{
+      background:rgba(255,255,255,.92); backdrop-filter:blur(14px);
+      border-radius:22px; padding:20px 22px;
+      box-shadow:0 16px 48px rgba(20,10,60,.18);
+    }
+    .panel{
+      border-radius:18px; padding:22px 26px;
+      box-shadow:0 8px 24px rgba(8,24,71,.07);
+    }
+    .kpi{
+      border-radius:18px; padding:20px 18px;
+      box-shadow:0 8px 20px rgba(0,0,0,.12);
+    }
+    .kpi .n{ font-size:32px; margin-top:4px; }
+    thead th{
+      font-size:13px; letter-spacing:.4px; font-weight:800;
+      padding:12px 14px;
+      background:linear-gradient(180deg,#7c3aed,#5b21b6);
+    }
+    thead th:first-child{ border-radius:12px 0 0 12px; }
+    thead th:last-child{ border-radius:0 12px 12px 0; }
+    tbody td{
+      padding:12px 14px;
+      box-shadow:0 2px 8px rgba(16,24,40,.06);
+      transition:background .15s;
+    }
+    tbody tr:hover td{ background:#faf9ff; }
+    .tab{
+      padding:11px 20px; font-size:15px;
+      box-shadow:inset 0 0 0 1.5px #e0ddf5;
+    }
+    .tab.active{
+      box-shadow:0 8px 20px rgba(91,33,182,.3);
+    }
+    .btn{
+      border-radius:14px; padding:10px 16px; font-size:14px;
+      transition:transform .12s,box-shadow .12s,filter .12s;
+    }
+    .btn.primary{
+      box-shadow:0 6px 18px rgba(91,33,182,.3);
+    }
+    .cat-card{
+      border-radius:18px; padding:18px;
+      box-shadow:0 6px 20px rgba(16,24,40,.07);
+      transition:transform .15s, box-shadow .15s;
+    }
+    .cat-card:hover{ transform:translateY(-2px); box-shadow:0 10px 28px rgba(16,24,40,.1); }
+    select, input[type='text'], input[type='number']{
+      border-radius:12px; border:1.5px solid #e0dff5;
+      transition:border-color .15s, box-shadow .15s;
+    }
+    select:focus, input[type='text']:focus, input[type='number']:focus{
+      outline:none; border-color:#7c3aed;
+      box-shadow:0 0 0 3px rgba(124,58,237,.12);
+    }
+
+    /* ── Feedback Button (always visible) ── */
+    .feedback-fab{
+      position:fixed; bottom:24px; right:24px; z-index:9998;
+      display:flex; align-items:center; gap:8px;
+      background:linear-gradient(135deg,#7c3aed,#5b21b6);
+      color:#fff; border:none; border-radius:999px;
+      padding:14px 22px; font-weight:700; font-size:14px; font-family:inherit;
+      box-shadow:0 8px 28px rgba(91,33,182,.45), 0 0 0 3px rgba(124,58,237,.15);
+      cursor:pointer; transition:transform .15s, box-shadow .15s;
+    }
+    .feedback-fab:hover{
+      transform:translateY(-2px) scale(1.03);
+      box-shadow:0 12px 36px rgba(91,33,182,.5), 0 0 0 4px rgba(124,58,237,.2);
+    }
+    .feedback-fab:active{ transform:translateY(0) scale(.98); }
+    .feedback-modal-card{
+      background:#fff; border-radius:20px; padding:32px 36px; width:min(500px,92vw);
+      box-shadow:0 24px 64px rgba(30,20,70,.28), 0 0 0 1px rgba(255,255,255,.12);
+      animation:slideUp .25s ease;
+    }
+    .feedback-modal-card h3{ margin:0 0 4px; font-size:22px; font-weight:800; color:#2c2761; }
+    .feedback-modal-card textarea{
+      width:100%; min-height:120px; padding:12px 16px; border-radius:12px;
+      border:1.5px solid #e0dff5; font-family:inherit; font-size:14px;
+      resize:vertical; transition:border-color .15s;
+    }
+    .feedback-modal-card textarea:focus{
+      outline:none; border-color:#7c3aed;
+      box-shadow:0 0 0 3px rgba(124,58,237,.12);
+    }
   </style>
 </head>
 <body>
   <div id="root" class="wrap"></div>
 
   <script type="text/babel" data-presets="react">
-const MT_DEBUG = true;
 function fmt2(n){ n=Number(n); if(!isFinite(n)) return '0.00'; return n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+/* ---------- Feedback / Improvements Button (always visible) ---------- */
+function FeedbackButton(){
+  const [showModal, setShowModal] = React.useState(false);
+  const [feedbackText, setFeedbackText] = React.useState('');
+  const [feedbackName, setFeedbackName] = React.useState('');
+  const [sent, setSent] = React.useState(false);
+  const [sending, setSending] = React.useState(false);
+  const [resultMsg, setResultMsg] = React.useState('');
+
+  function sendFeedback(){
+    if(!feedbackText.trim()) return;
+    setSending(true);
+    setResultMsg('');
+    const name = feedbackName.trim() || 'Anonymous';
+    fetch('/api/feedback', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name: name, message: feedbackText})
+    })
+    .then(r => r.json())
+    .then(data => {
+      setSending(false);
+      if (data.ok) {
+        setSent(true);
+        if (data.email_sent) {
+          setResultMsg('Your feedback has been saved and emailed to the developer. Thank you!');
+        } else if (!data.has_email) {
+          setResultMsg('Your feedback has been saved! To enable email delivery, add your email in Sign Up.');
+        } else {
+          setResultMsg('Your feedback has been saved! Email delivery will be attempted when SMTP is configured.');
+        }
+        setTimeout(()=>{ setShowModal(false); setSent(false); setFeedbackText(''); setFeedbackName(''); setResultMsg(''); }, 3000);
+      } else {
+        setResultMsg('Failed to save feedback. Please try again.');
+      }
+    })
+    .catch(err => {
+      setSending(false);
+      setResultMsg('Error: ' + err.message);
+    });
+  }
+
+  return (
+    <React.Fragment>
+      <button className="feedback-fab" onClick={()=>setShowModal(true)} title="Send improvement ideas">
+        💡 Send Idea
+      </button>
+      {showModal && (
+        <div className="modal-overlay" onClick={()=>{setShowModal(false);setSent(false);}}>
+          <div className="feedback-modal-card" onClick={e=>e.stopPropagation()}>
+            {sent ? (
+              <div style={{textAlign:'center',padding:'30px 0'}}>
+                <div style={{fontSize:56,marginBottom:12}}>✅</div>
+                <h3 style={{textAlign:'center'}}>Thank You!</h3>
+                <p style={{color:'#667085',marginTop:8}}>{resultMsg}</p>
+              </div>
+            ) : (
+              <React.Fragment>
+                <h3>💡 Share Your Improvement Idea</h3>
+                <p style={{color:'#667085',fontSize:14,margin:'6px 0 18px'}}>Help us make MoneyTron better! Your ideas are saved and sent to the developer.</p>
+                <label style={{display:'block',fontWeight:700,fontSize:14,color:'#30334b',marginBottom:6}}>Your Name (optional)</label>
+                <input type="text" placeholder="Your name" value={feedbackName} onChange={e=>setFeedbackName(e.target.value)} style={{marginBottom:14}} />
+                <label style={{display:'block',fontWeight:700,fontSize:14,color:'#30334b',marginBottom:6}}>Your Idea / Suggestion</label>
+                <textarea placeholder="What feature would you like to see? What could be improved? Any bugs to report?" value={feedbackText} onChange={e=>setFeedbackText(e.target.value)}/>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginTop:8}}>
+                  <span style={{fontSize:12,color:'#667085'}}>📧 Sent to: roy1.ayalon@gmail.com</span>
+                </div>
+                {resultMsg && <div style={{color:'#dc2626',fontSize:13,marginTop:6,fontWeight:600}}>{resultMsg}</div>}
+                <div className="modal-actions">
+                  <button className="btn" onClick={()=>{setShowModal(false);setSent(false);setResultMsg('');}}>Cancel</button>
+                  <button className="btn primary" onClick={sendFeedback} disabled={!feedbackText.trim() || sending}>{sending ? '⏳ Sending...' : 'Send Feedback'}</button>
+                </div>
+              </React.Fragment>
+            )}
+          </div>
+        </div>
+      )}
+    </React.Fragment>
+  );
+}
 
 // Format date as DD-MM-YYYY consistently everywhere
 function formatDMY(dateInput) {
@@ -207,10 +433,11 @@ var API=(function(){
   function f(m,u,b){ var o={method:m,credentials:'include',headers:{}}; if(b){o.headers['Content-Type']='application/json';o.body=JSON.stringify(b);} return fetch(base+u,o); }
   return {
     users:()=>f('GET','/users').then(j),
-    login:(user)=>f('POST','/login',{user}).then(j),
-    current:()=>f('GET','/current-user').then(j),
+    login:(user,password)=>f('POST','/login',{user,password}).then(j),
+    signup:(user,password,email)=>f('POST','/signup',{user,password,email}).then(j),
     bootstrap:()=>f('GET','/bootstrap').then(j),
     logout:()=>f('POST','/logout').then(j),
+    changePassword:(old_password,new_password)=>f('POST','/change-password',{old_password,new_password}).then(j),
     getCategories:()=>f('GET','/categories').then(j),
     saveCategories:(c)=>f('POST','/categories',{categories:c}).then(j),
     getStage:()=>f('GET','/current-month').then(j),
@@ -224,9 +451,20 @@ var API=(function(){
     clearAll:()=>f('POST','/clear-all').then(j),
     // New unified statistics endpoint
     getStatistics:(payload)=>f('POST','/statistics',payload).then(j),
+    // Summary aggregation (server-side)
+    getSummary:()=>fetch(base+'/summary',{method:'GET',credentials:'include'}).then(j),
+    // File upload (server-side parsing)
+    uploadFile:(file, tag, year)=>{
+      var fd = new FormData();
+      fd.append('file', file);
+      fd.append('tag', String(tag));
+      fd.append('year', String(year));
+      return fetch(base+'/upload', {method:'POST', credentials:'include', body:fd}).then(j);
+    },
+    // Auto-categorize (server-side)
+    autoCategorize:(rows)=>f('POST','/auto-categorize',{transactions:rows}).then(j),
     // Old deprecated endpoints (kept for backward compatibility)
     statsSummary:(filters)=>f('POST','/statistics/summary',filters).then(j),
-    statsPerTagMeans:(filters)=>f('POST','/statistics/per_tag_means',filters).then(j),
     statsCategoryLast3:(filters)=>f('POST','/statistics/category_last3_mean',filters).then(j),
     statsIncomeMeans:(filters)=>f('POST','/statistics/income_means',filters).then(j),
     statsRollup:(filters)=>f('POST','/statistics/rollup',filters).then(j),
@@ -236,834 +474,24 @@ var API=(function(){
 function asArray(x){ if(Array.isArray(x)) return x; if(x && Array.isArray(x.items)) return x.items; if(x && Array.isArray(x.data)) return x.data; return []; }
 function asCategories(x){ if(x && typeof x==='object' && !Array.isArray(x)) return x; if(Array.isArray(x)){var o={}; x.forEach(it=>{ if(typeof it==='string') o[it]=[]; else if(it && it.name) o[it.name]=Array.isArray(it.subcategories)?it.subcategories.slice():[]; }); return o;} return {}; }
 
-/* ================== File parsing (v7) ================== */
-/* 
- * Enhanced to support:
- * 1. CSV files with combined "זכות/חובה ₪" column (hzCol)
- *    - Positive values = Income, Negative values = Expense
- * 2. XLS/XLSX files with separate חובה/זכות columns
- *    - חובה = Expense, זכות = Income
- * 3. Various header formats: "ת. פעולה", "תנועה", "תיאור", etc.
- * 4. Improved heuristic detection for header-less tables
- * 5. Debug logging controlled by MT_DEBUG flag for XLS troubleshooting
- * 6. HTML-based XLS files (common bank exports) - strips HTML tags
- */
+/* ================== File parsing & auto-categorization moved to Python server ================== */
+/* See server/ingestion.py, server/categorization.py, server/utils.py */
 
-// Strip HTML tags and decode entities from text (for HTML-based XLS files)
-function cleanHTML(str){
-  if (!str) return '';
-  let s = String(str);
-  // Remove HTML tags
-  s = s.replace(/<[^>]*>/g, ' ');
-  // Decode common HTML entities
-  s = s.replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
-  // Collapse multiple spaces
-  s = s.replace(/\s+/g, ' ').trim();
-  return s;
-}
-
-function bestNameFromRow_v6(row, avoidCols){
-  const avoid = new Set((avoidCols||[]).filter(x=>x!=null));
-  let best = {text:'', score:-1};
-  for (let c=0;c<row.length;c++){
-    if (avoid.has(c)) continue;
-    const raw = row[c];
-    if (raw==null) continue;
-    
-    // Clean HTML tags first
-    let s = cleanHTML(raw);
-    if (!s) continue;
-    
-    // Skip pure punctuation
-    if (/^[:.\-_,;!?]+$/.test(s)) continue;
-    
-    // Skip if it looks like a date
-    if (parseDateFlex_v6(raw)) continue;
-    if (/\d{4}/.test(s) || /GMT|UTC/.test(s) || /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Mon|Tue|Wed|Thu|Fri|Sat|Sun)/i.test(s)) continue;
-    
-    // Skip if mostly numbers (like "5,072.03 0.00 43,350.01")
-    if (/^[\d,.\s\-₪$€£]+$/.test(s)) continue;
-    
-    // Skip garbage characters (lots of x, «, », etc.)
-    if (/^[x\s«»§=íï\-]+$/i.test(s)) continue;
-    
-    // Must have letters (Hebrew or Latin)
-    if (!/[A-Za-z\u0590-\u05FF]/.test(s)) continue;
-    
-    // Skip pure numbers (but allow text with numbers mixed in)
-    const cleaned = s.replace(/[,\s₪$€£]/g,'');
-    if (!isNaN(Number(cleaned)) && !/[A-Za-z\u0590-\u05FF]/.test(cleaned)) continue;
-    
-    // Prefer text with more Hebrew/Latin letters (better quality names)
-    const letterCount = (s.match(/[A-Za-z\u0590-\u05FF]/g) || []).length;
-    const score = letterCount * 10 + s.length; // Prioritize letter count over total length
-    
-    if (score > best.score) best = {text:s, score};
-  }
-  return best.text || '';
-}
-function parseAmount(v){
+// parseAmount: UI helper kept client-side for inline editing of amount fields
+function parseAmount(v) {
   if (v == null || v === '') return 0;
-  let s = String(v).trim();
-  let neg = false;
-  if (/^\(.*\)$/.test(s)) { neg = true; s = s.slice(1,-1); }
-  if (/[-−–-]\s*$/.test(s)) { neg = true; s = s.replace(/[-−–-]\s*$/,''); }
-  s = s.replace(/[₪$€£]/g,'').replace(/\u200f|\u200e/g,'').replace(/\s+/g,'');
-  if (s.includes('.') && s.includes(',')) s = s.replace(/\./g,'').replace(',', '.'); else s = s.replace(/,/g,'');
-  s = s.replace(/[^0-9.\-]/g,'');
-  let n = Number(s); if (!isFinite(n)) n = 0;
+  if (typeof v === 'number') return v;
+  var s = String(v).trim();
+  var neg = false;
+  if (/^\(.*\)$/.test(s)) { neg = true; s = s.slice(1, -1); }
+  if (/[-\u2212\u2013]\s*$/.test(s)) { neg = true; s = s.replace(/[-\u2212\u2013]\s*$/, ''); }
+  s = s.replace(/[₪$€£\u200f\u200e\s]/g, '');
+  if (s.indexOf('.') >= 0 && s.indexOf(',') >= 0) { s = s.replace(/\./g, '').replace(',', '.'); }
+  else { s = s.replace(/,/g, ''); }
+  s = s.replace(/[^0-9.\-]/g, '');
+  var n = parseFloat(s);
+  if (!isFinite(n)) return 0;
   return neg ? -Math.abs(n) : n;
-}
-
-/* ---------- helpers ---------- */
-function exactLocalDate_v6(y,m,d){ return new Date(y, m-1, d, 12, 0, 0); }
-function excelSerialToDate_v6(n){
-  try{
-    var o = XLSX.SSF.parse_date_code(Number(n));
-    if (o && o.y && o.m && o.d){ return exactLocalDate_v6(o.y, o.m, o.d); }
-  }catch(_){}
-  var days = Math.floor(Number(n));
-  var base = Date.UTC(1899,11,30);
-  var dt = new Date(base + days*86400000);
-  return exactLocalDate_v6(dt.getUTCFullYear(), dt.getUTCMonth()+1, dt.getUTCDate());
-}
-function isLikelyExcelSerial_v6(n){ var x=Number(n); return Number.isFinite(x) && x>20000 && x<50000; }
-function normHeb_v6(s){ return String(s||'').replace(/\s+/g,'').toLowerCase(); }
-// Robust header normalization: keep only Hebrew/Latin letters (drop punctuation, quotes, slashes, spaces)
-function normAZ(s){
-  return String(s||'').toLowerCase().replace(/[^a-z\u0590-\u05FF]/g,'');
-}
-function numify_v6(v){
-  if (v==null || v==='') return null;
-  if (typeof v==='number' && Number.isFinite(v)) return v;
-  let s = String(v).trim();
-  if (!s) return null;
-  
-  // Clean HTML tags if present (for HTML-based XLS files)
-  s = cleanHTML(s);
-  if (!s) return null;
-  
-  // normalize spaces and RTL marks
-  s = s.replace(/\u00a0/g,'').replace(/\u200f|\u200e/g,'');
-  let neg = false;
-  // (123) style
-  if (/^\(.*\)$/.test(s)) { neg = true; s = s.slice(1,-1); }
-  // trailing minus 123- or 123 −
-  if (/[-−–-]\s*$/.test(s)) { neg = true; s = s.replace(/[-−–-]\s*$/,''); }
-  // strip currency and spaces
-  s = s.replace(/[₪$€£]/g,'').replace(/\s+/g,'');
-  // handle thousand/decimal separators
-  if (s.includes('.') && s.includes(',')) {
-    s = s.replace(/\./g,'').replace(',', '.');
-  } else {
-    s = s.replace(/,/g,'');
-  }
-  // keep only digits and dot/minus
-  s = s.replace(/[^0-9.\-]/g,'');
-  let n = Number(s);
-  if (!Number.isFinite(n)) return null;
-  return neg ? -Math.abs(n) : n;
-}
-function isText_v6(v){
-  if (v==null) return false;
-  var s=String(v).trim(); if (!s) return false;
-  return isNaN(Number(s.replace(/[,₪$€£]/g,'')));
-}
-
-/* ---------- STRICT date parsing ---------- */
-function parseDateFlex_v6(v){
-  if (v==null || v==='') return null;
-  if (v instanceof Date && !isNaN(v)) return exactLocalDate_v6(v.getFullYear(), v.getMonth()+1, v.getDate());
-  if (typeof v==='number' && isLikelyExcelSerial_v6(v)) return excelSerialToDate_v6(v);
-
-  // normalize string: remove RTL/LRM/embedding marks + NBSP
-  let s = String(v).trim();
-  if (!s) return null;
-  s = s.replace(/[\u200f\u200e\u202a\u202b\u202c\u2066\u2067\u2068\u2069\u00a0]/g, '');
-
-  // pull a date-like token if the cell has extra text around it
-  const token = s.match(/(\d{1,2}[\/.\-]\d{1,2}(?:[\/.\-]\d{2,4})?|\d{4}[\/.\-]\d{1,2}[\/.\-]\d{1,2}|[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4})/);
-  if (token) s = token[1].replace(/[.]/g,'/');
-
-  const today = new Date();
-  const assumeY = today.getFullYear();
-
-  const fmtsDayFirst = ['D/M/YYYY','DD/MM/YYYY','D/M/YY','DD/MM/YY','D-M-YYYY','DD-MM-YYYY','D/M','DD/MM','D-M','DD-MM'];
-  for (let f of fmtsDayFirst){
-    const d=dayjs(s,f,true);
-    if (d.isValid()){
-      const y = d.year() < 1900 ? assumeY : d.year();
-      return exactLocalDate_v6(y, d.month()+1, d.date());
-    }
-  }
-  const fmtsYearFirst = ['YYYY/M/D','YYYY/MM/DD','YYYY-M-D','YYYY-MM-DD'];
-  for (let f of fmtsYearFirst){
-    const d=dayjs(s,f,true);
-    if (d.isValid() && d.year()>1899 && d.year()<2101) return exactLocalDate_v6(d.year(), d.month()+1, d.date());
-  }
-  const fmtsMonText = ['D MMM YYYY','DD MMM YYYY','MMM D YYYY','MMM DD YYYY'];
-  for (let f of fmtsMonText){
-    const d=dayjs(s,f,true);
-    if (d.isValid() && d.year()>1899 && d.year()<2101) return exactLocalDate_v6(d.year(), d.month()+1, d.date());
-  }
-  return null;
-}
-
-/* ---------- header finders ---------- */
-function isBalanceLabel_v6(lbl){
-  const n = normHeb_v6(lbl||'');
-  return /(יתרה|balance|saldo|יתרתחשבון|יתרהפתיחה|יתרהסופית)/.test(n);
-}
-function mapFromHeaderRow_v6(matrix, r){
-  var row = matrix[r]||[];
-  var norm = row.map(normAZ); // letters-only normalization for robust matching
-  function idx(pred){ for (var i=0;i<norm.length;i++){ if (pred(norm[i], i)) return i; } return -1; }
-
-    // Prefer exact Leumi "תאריך העסקה" (note: normAZ removes spaces -> 'תאריךהעסקה')
-    // Also handle variations like "ת. פעולה", "ת. ערך", etc.
-    let dateCol  = idx(x=>x.includes('תאריךהעסקה') || x === 'תאריך' || x.includes('תפעולה') || x.includes('תערך'));
-    if (dateCol < 0) dateCol = idx(x=>x.includes('תאריך') || x.includes('date'));
-
-  // NAME / DESCRIPTION column (loose) - enhanced for various XLS formats
-  // Priority order: תיאור התנועה > תיאור > פרטים > others
-  // But EXCLUDE: ערוץ ביצוע, עמלה, אסמכתא, יתרה (execution channel, commission, reference, balance)
-  
-  if (MT_DEBUG) {
-    console.log('[MoneyTron][Debug] Detecting nameCol from header row:', row);
-    console.log('[MoneyTron][Debug] Normalized header:', norm);
-  }
-  
-  let nameCol = idx(x=> (x.includes('תיאורהתנועה') || x.includes('תיאורתנועה')) && !x.includes('ערוץ') && !x.includes('עמלה') && !x.includes('אסמכתא'));  // "תיאור התנועה" - highest priority
-  
-  if (MT_DEBUG && nameCol >= 0) {
-    console.log('[MoneyTron][Debug] Found תיאור התנועה at column', nameCol, ':', row[nameCol]);
-  }
-  
-  if (nameCol < 0) {
-    nameCol = idx(x=>
-      !x.includes('ערוץ') && !x.includes('ביצוע') && !x.includes('עמלה') && !x.includes('אסמכתא') && !x.includes('יתרה') &&  // Exclude these columns
-      (x.includes('שםביתעסק')||x.includes('שםעסק')|| (x.includes('שם') && x.includes('עסק')) ||
-      x.includes('תיאור')||x.includes('פרטים')||x.includes('תיאורפעולה')||x.includes('פרטיתנועה')||x.includes('פירוט')||
-      x.includes('description') || x.includes('תנועה'))  // Added "תנועה" for some XLS files
-    );
-    if (MT_DEBUG && nameCol >= 0) {
-      console.log('[MoneyTron][Debug] Found name column (fallback) at column', nameCol, ':', row[nameCol]);
-    }
-  }
-  const hCol     = idx(x=>x==='חובה');
-  const zCol     = idx(x=>x==='זכות');
-  const hzCol    = idx(x=>x.includes('זכותחובה'));
-
-  let debitCol = idx(x=> (x.includes('סכוםחיוב')||x.includes('לתשלום')||x.includes('לחיוב')||x.includes('בשח')) && !isBalanceLabel_v6(x));
-  let transCol = idx(x=> (x.includes('סכוםעסקה')||x.includes('amount')) && !isBalanceLabel_v6(x));
-
-  if (nameCol < 0){
-    const COLS = row.length;
-    let best = {c:-1,score:-1};
-    for (let c=0;c<COLS;c++){
-      if (c===dateCol) continue;
-      let textHits=0, dateHits=0, lenSum=0;
-      for (let rr=r+1; rr<Math.min(matrix.length, r+200); rr++){
-        const v=(matrix[rr]||[])[c];
-        if (v==null) continue;
-        const s=String(v).trim();
-        if (!s) continue;
-        if (parseDateFlex_v6(v)) { dateHits++; continue; }
-        if (/[A-Za-z\u0590-\u05FF]/.test(s) && isNaN(Number(s.replace(/[\,\s]/g,'')))) { textHits++; lenSum+=s.length; }
-      }
-      const score = textHits*2 + lenSum*0.05 - dateHits*4;
-      if (score>best.score) best={c,score};
-    }
-    nameCol = best.c;
-  }
-
-  return {row:r, dateCol, nameCol, transCol:(transCol>=0?transCol:null), debitCol:(debitCol>=0?debitCol:null), hCol:(hCol>=0?hCol:null), zCol:(zCol>=0?zCol:null), hzCol:(hzCol>=0?hzCol:null)};
-}
-function findHeaderRows_v6(matrix){
-  var rows=[];
-  for (var r=0;r<matrix.length;r++){
-    var norm=(matrix[r]||[]).map(normAZ);
-    var hasDate=norm.some(x=>x.includes('תאריך')||x.includes('date')||x.includes('תפעולה')||x.includes('תערך'));
-    var hasName=norm.some(x=>x.includes('תיאורהתנועה')||x.includes('תיאורתנועה')||x.includes('שםביתעסק')||x.includes('שםעסק')||(x.includes('שם')&&x.includes('עסק'))||x.includes('תיאור')||x.includes('פרטים')||x.includes('תיאורפעולה')||x.includes('פרטיתנועה')||x.includes('פירוט')||x.includes('תנועה'));
-    var hasTxn = norm.some(x =>
-    x.includes('סכוםהעסקה') || x.includes('סכוםעסקה') || (x.includes('עסקה') && x.includes('סכום'))
-    );
-    var hasDeb = norm.some(x =>
-    x.includes('סכוםהחיוב') || x.includes('סכוםחיוב') || x.includes('לתשלום') || x.includes('לחיוב') || x.includes('בשח')
-    );
-    var hasHZ = norm.some(x => x === 'חובה' || x === 'זכות' || x.includes('זכותחובה'));  // Check for separate or combined חובה/זכות columns
-    if (hasDate && (hasName || hasTxn || hasDeb || hasHZ)) rows.push(r);
-  }
-  return rows;
-}
-function detectHeuristic_v6(matrix){
-  var rows=matrix.length, cols=0;
-  for (var r=0;r<rows;r++){ if ((matrix[r]||[]).length>cols) cols=(matrix[r]||[]).length; }
-  if (!cols) return null;
-  var dateScore=new Array(cols).fill(0), textScore=new Array(cols).fill(0);
-  for (var r=0;r<rows;r++){
-    var row=matrix[r]||[];
-    for (var c=0;c<cols;c++){
-      var v=row[c];
-      if (parseDateFlex_v6(v)) dateScore[c]++;
-      if (isText_v6(v)) textScore[c]++;
-    }
-  }
-  var dateCol=0, maxD=-1;
-  for (var c=0;c<cols;c++){ if (dateScore[c]>maxD){ maxD=dateScore[c]; dateCol=c; } }
-  var nameCol=-1, maxT=-1;
-  for (var c=0;c<cols;c++){ if (c===dateCol) continue; if (textScore[c]>maxT){ maxT=textScore[c]; nameCol=c; } }
-
-  var txRows=[];
-  for (var r=0;r<rows;r++){
-    var d=parseDateFlex_v6((matrix[r]||[])[dateCol]);
-    var n=(matrix[r]||[])[nameCol]; var nt=String(n==null?'':n).trim();
-    if (d && nt && isNaN(Number(nt))) txRows.push(r);
-  }
-  var cand=[];
-  for (var c=0;c<cols;c++){
-    if (c===dateCol || c===nameCol) continue;
-    var num=0, dec=0;
-    for (var i=0;i<txRows.length;i++){
-      var r=txRows[i];
-      var v=(matrix[r]||[])[c]; if (v==null || String(v).trim()==='') continue;
-      var n=numify_v6(v); if (n==null) continue;
-      num++; if (Math.round(n)!==n) dec++;
-    }
-    if (!num) continue;
-    cand.push({ci:c, score:num + (dec/num)*2});
-  }
-  cand.sort(function(a,b){ return (b.score===a.score)? (b.ci-a.ci) : (b.score-a.score); });
-  var left = cand.length? Math.min(cand[0].ci, (cand[1]||cand[0]).ci): null;
-  var right= cand.length? Math.max(cand[0].ci, (cand[1]||cand[0]).ci): null;
-  return {dateCol:dateCol, nameCol:nameCol, transCol:left, debitCol:right};
-}
-
-/* ---------- SHEET extractor (v7) ---------- */
-/* ---------- SHEET extractor v7 (carry-forward date for merged rows) ---------- */
-function extractFromSheet_v6(ws, sheetName, fileName){
-  const isXLS = fileName && /\.xls$/i.test(fileName);
-  // For XLS files (HTML-based), use raw:false to get formatted text which may preserve encoding better
-  const mat = XLSX.utils.sheet_to_json(ws,{header:1, raw:!isXLS, defval:null});
-  const rows = [];
-
-  // Debug logging for XLS files
-  if (MT_DEBUG && isXLS){
-    console.log('[MoneyTron][XLS Debug] Sheet:', sheetName, 'Total rows in mat:', mat.length);
-    if (mat.length === 0){
-      console.log('[MoneyTron][XLS Debug] WARNING: Matrix is EMPTY!');
-    }
-  }
-
-  function toISO(d){
-    if (d instanceof Date) return dayjs(d).format('YYYY-MM-DD');
-    if (typeof d==='string'){ const dd=parseDateFlex_v6(d); if (dd) return dayjs(dd).format('YYYY-MM-DD'); }
-    if (typeof d==='number' && isLikelyExcelSerial_v6(d)) return dayjs(excelSerialToDate_v6(d)).format('YYYY-MM-DD');
-    return null;
-  }
-
-  function pushRow(dateObj,name,t,db,creditByHZ){
-    const iso = toISO(dateObj);
-    const nameStr = String(name||'').trim();
-    const tNum  = (t==null ? null : Number(t));
-    const dbNum = (db==null ? null : Number(db));
-    const base  = (dbNum!=null && dbNum!==0) ? dbNum : (tNum!=null ? tNum : 0);
-    if (!iso || !nameStr || !base) return;
-    const credit = creditByHZ != null ? creditByHZ : ((tNum!=null && tNum<0) || (dbNum!=null && dbNum<0));
-    
-    // Extract year and month_tag from ISO date - ISO is always YYYY-MM-DD
-    const [isoYearStr, isoMonthStr, isoDayStr] = iso.split('-');
-    let year = parseInt(isoYearStr);
-    let month_tag = parseInt(isoMonthStr);
-    let dayNum = parseInt(isoDayStr);
-    
-    // CRITICAL FIX: Check if we need to swap day and month
-    // If the file has a consistent tag (month), and the parsed month doesn't match,
-    // it means Excel/parser interpreted DD/MM as MM/DD - we need to swap!
-    // We allow a small tolerance for cross-month transactions (±1 month)
-    const userTag = window.__currentUploadTag;  // Set during upload
-    if (userTag && Math.abs(month_tag - userTag) > 1 && dayNum >= 1 && dayNum <= 12) {
-      // Month doesn't match tag, and day is valid as a month (1-12), so swap them
-      [month_tag, dayNum] = [dayNum, month_tag];
-      year = parseInt(isoYearStr);  // Keep year the same
-    }
-    
-    // CRITICAL: Always format as DD-MM-YYYY (day first!)
-    const date_str = `${String(dayNum).padStart(2,'0')}-${String(month_tag).padStart(2,'0')}-${year}`;
-    
-    // Reconstruct ISO with corrected values
-    const corrected_iso = `${year}-${String(month_tag).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
-    
-    rows.push({
-      date: corrected_iso,           // ISO format for storage
-      date_iso: corrected_iso,       // Explicit ISO column
-      date_str: date_str,  // DD-MM-YYYY format
-      year: year,
-      month_tag: month_tag,
-      tag: month_tag,      // Keep legacy tag field for compatibility
-      name: nameStr,
-      amount: Math.abs(tNum!=null ? tNum : base),
-      debit:  Math.abs(dbNum!=null ? dbNum : base),
-      __credit: !!credit
-    });
-  }
-
-  // quick header detector
-  function isHeaderRow(row){
-    const n = (row||[]).map(normAZ);
-    const hasDate = n.some(x => x.includes('תאריך') || x.includes('date') || x.includes('תפעולה') || x.includes('תערך'));
-    const hasName = n.some(x =>
-      x.includes('תיאורהתנועה') || x.includes('תיאורתנועה') ||  // "תיאור התנועה" - most common
-      x.includes('שםביתעסק') || x.includes('שםעסק') || (x.includes('שם') && x.includes('עסק')) ||
-      x.includes('תיאור') || x.includes('פרטים') || x.includes('תיאורפעולה') ||
-      x.includes('פרטיתנועה') || x.includes('פירוט') || x.includes('description') ||
-      x.includes('תנועה') || x.includes('אסמכתא')  // Added for "תנועה" and "אסמכתא" columns
-    );
-    const hasTxn  = n.some(x => x.includes('סכוםעסקה') || (x.includes('עסקה') && x.includes('סכום')) || x.includes('amount'));
-    const hasDeb  = n.some(x => x.includes('סכוםחיוב') || x.includes('לתשלום') || x.includes('לחיוב') || x.includes('בשח') || x.includes('סכום'));
-    const hasHZ   = n.some(x => x === 'חובה' || x === 'זכות' || x.includes('זכותחובה'));  // Check for separate or combined חובה/זכות columns
-    
-    const result = hasDate && (hasName || hasTxn || hasDeb || hasHZ);
-    
-    if (MT_DEBUG && isXLS && result){
-      // Only log when we actually find a header
-      console.log('[MoneyTron][XLS Debug] HEADER FOUND! Row:', n, {hasDate, hasName, hasTxn, hasDeb, hasHZ});
-    }
-    
-    return result;
-  }
-
-  // A very permissive detector for a data row (date + name + any number) used for header-less tables
-  function looksLikeTxnRow(row){
-    if (!row || !row.length) return false;
-    // date: any cell that can parse as date OR we have a carried date (lastGoodDate)
-    const hasDateAny = row.some(v=>!!parseDateFlex_v6(v)) || !!lastGoodDate;
-    // name-like: any text cell with Hebrew/Latin letters that isn't a number
-    const hasNameAny = row.some(v=>{
-      const s=String(v==null?'':v).trim();
-      return /[A-Za-z\u0590-\u05FF]/.test(s) && isNaN(Number(s.replace(/[\s,₪$€£]/g,'')));
-    });
-    // amount: any numeric-ish cell
-    const hasAmtAny = row.some(v=>{ const n=numify_v6(v); return n!=null && Math.abs(n)>0; });
-    return (hasNameAny && hasAmtAny && hasDateAny);
-  }
-
-  let map = null; // {dateCol, nameCol, transCol, debitCol, hCol, zCol, hzCol}
-  let lastGoodDate = null;
-  // Pre-compute a sheet-level heuristic mapping in case we never see a header
-  const heur = detectHeuristic_v6(mat) || {};
-  
-  if (MT_DEBUG && isXLS){
-    console.log('[MoneyTron][XLS Debug] Heuristic mapping:', heur);
-  }
-
-  function rowHasAnyAmount(row){
-    const probes = [map && map.hCol, map && map.zCol, map && map.debitCol, map && map.transCol, map && map.hzCol].filter(i=>i!=null);
-    for (const c of probes){ const n = numify_v6(row[c]); if (n!=null && Math.abs(n)>0) return true; }
-    for (let c=0;c<row.length;c++){
-      if (probes.includes(c)) continue;
-      const n = numify_v6(row[c]); if (n!=null && Math.abs(n)>0) return true;
-    }
-    return false;
-  }
-  function rowBestName(row){
-    let name = (map && map.nameCol!=null) ? row[map.nameCol] : null;
-    const originalName = name;
-    
-    // Clean HTML tags if present (for HTML-based XLS files)
-    name = cleanHTML(name);
-    const nameStr = String(name||'').trim();
-    
-    // Check if it's mostly numbers and punctuation (like "5,072.03 0.00 43,350.01")
-    const looksLikeNumbers = nameStr && /^[\d,.\s\-₪$€£]+$/.test(nameStr);
-    
-    // Check if it's garbage characters (lots of x and special chars)
-    const looksLikeGarbage = nameStr && /^[x\s«»§=íï\-]+$/i.test(nameStr);
-    
-    // Check if name has meaningful text (Hebrew or Latin letters)
-    const hasLetters = nameStr && /[A-Za-z\u0590-\u05FF]/.test(nameStr);
-    
-    // Only use fallback if: empty, pure punctuation, pure numbers, garbage, OR no letters at all
-    const needsFallback = !nameStr || /^[:.\-_]+$/.test(nameStr) || looksLikeNumbers || looksLikeGarbage || !hasLetters;
-    
-    if (needsFallback){
-      const fallbackName = bestNameFromRow_v6(row, [map && map.dateCol, map && map.hCol, map && map.zCol, map && map.debitCol, map && map.transCol, map && map.hzCol]);
-      if (MT_DEBUG){
-        console.log('[MoneyTron][Debug] Name fallback triggered. Original:', originalName, '→ Cleaned:', nameStr, '→ Fallback:', fallbackName);
-        console.log('[MoneyTron][Debug] Reasons - empty:', !nameStr, 'punct:', /^[:.\-_]+$/.test(nameStr), 'numbers:', looksLikeNumbers, 'garbage:', looksLikeGarbage, 'noLetters:', !hasLetters);
-      }
-      name = fallbackName;
-    }
-    
-    const s = String(name||'').trim();
-    return s || '';
-  }
-
-  for (let r=0; r<mat.length; r++){
-    const row = mat[r] || [];
-    if (!row.length) continue;
-
-    // (1) re-map when a new header row appears
-    if (isHeaderRow(row)){
-      const m = mapFromHeaderRow_v6(mat, r);
-      map = {
-        dateCol : m.dateCol,
-        nameCol : m.nameCol,
-        transCol: (m.transCol!=null ? m.transCol : null),
-        debitCol: (m.debitCol!=null ? m.debitCol : null),
-        hCol    : (m.hCol!=null ? m.hCol : null),
-        zCol    : (m.zCol!=null ? m.zCol : null),
-        hzCol   : (m.hzCol!=null ? m.hzCol : null)
-      };
-      
-      if (MT_DEBUG){
-        console.log('[MoneyTron][Debug] Found header at row', r);
-        console.log('[MoneyTron][Debug] Header row:', row);
-        console.log('[MoneyTron][Debug] Map:', map);
-      }
-      
-      lastGoodDate = null;
-      continue;
-    }
-
-    // Skip any accidental header-looking row mapped as data (Hebrew/Latin text in key columns)
-    if (map && row && (
-    (map.dateCol!=null && /[A-Za-z\u0590-\u05FF]/.test(String(row[map.dateCol]||''))) &&
-    (map.nameCol!=null && /[A-Za-z\u0590-\u05FF]/.test(String(row[map.nameCol]||''))) &&
-    (map.debitCol!=null && /[A-Za-z\u0590-\u05FF]/.test(String(row[map.debitCol]||'')))
-    )) {
-    continue;
-    }
-
-    // (2) If we still have no map but the row looks like data → use heuristic mapping for the whole sheet
-    if (!map && looksLikeTxnRow(row) && heur && (heur.dateCol!=null || heur.nameCol!=null)){
-      map = {
-        dateCol : heur.dateCol!=null?heur.dateCol:null,
-        nameCol : heur.nameCol!=null?heur.nameCol:null,
-        transCol: heur.transCol!=null?heur.transCol:null,
-        debitCol: heur.debitCol!=null?heur.debitCol:null,
-        hCol    : null,
-        zCol    : null,
-        hzCol   : null
-      };
-      
-      if (MT_DEBUG && isXLS){
-        console.log('[MoneyTron][XLS Debug] Using heuristic mapping at row', r, 'map:', map);
-      }
-      
-      // set lastGoodDate if this very row has a date
-      const dTry = map.dateCol!=null ? row[map.dateCol] : null;
-      const d0 = parseDateFlex_v6(dTry);
-      if (d0) lastGoodDate = d0;
-      // fall through to parse this row with the heuristic map
-    }
-
-    if (!map) continue; // haven’t seen a header or data yet
-
-    const joined = String(row.map(x=>String(x||'')).join(' '));
-    if (/(סה"?כ|סהכ|סיכום|מאזן|יתרה\s*(פתיחה|סופית)?)/.test(joined)) continue; // skip totals/balances
-
-    // 1) date from mapped column (may be empty)
-    const dRaw = map.dateCol!=null ? row[map.dateCol] : null;
-    let d = parseDateFlex_v6(dRaw);
-    if (!d && typeof dRaw === 'string') {
-      const cleaned = dRaw.replace(/[\u200f\u200e\u202a\u202b\u202c\u2066\u2067\u2068\u2069\u00a0]/g,'').trim();
-      if (cleaned === '' || cleaned === '-' || cleaned === '—') {
-        // leave d as null so carry-forward can apply
-      }
-    }
-    
-    // If no date in mapped column, try first few columns (common in XLS)
-    if (!d && !map.dateCol) {
-      for (let c=0; c<Math.min(3, row.length); c++){
-        d = parseDateFlex_v6(row[c]);
-        if (d) break;
-      }
-    }
-    // 2) compute amounts/name first (we'll decide which date to use after)
-    let creditFlag = null, t=null, db=null;
-
-    if (map.hCol!=null || map.zCol!=null){
-      const h = map.hCol!=null ? numify_v6(row[map.hCol]) : null;
-      const z = map.zCol!=null ? numify_v6(row[map.zCol]) : null;
-      
-      if (MT_DEBUG && isXLS && r < 50){
-        console.log('[MoneyTron][XLS Debug] Row', r, 'חובה/זכות check - hCol:', map.hCol, 'h:', h, 'zCol:', map.zCol, 'z:', z);
-      }
-      
-      if (h!=null && Math.abs(h)>0){ t=h; db=h; creditFlag=false; }
-      else if (z!=null && Math.abs(z)>0){ t=z; db=z; creditFlag=true; }
-    }
-    // Combined זכות/חובה column (e.g., "זכות/חובה ₪")
-    if ((t==null || db==null) && map.hzCol!=null){
-      const hz = numify_v6(row[map.hzCol]);
-      if (hz != null && Math.abs(hz) > 0){
-        t = hz;
-        db = hz;
-        // Positive → credit (Income), negative → debit (Expense)
-        creditFlag = hz > 0;
-      }
-    }
-    if ((t==null || db==null) && map.debitCol!=null){
-      const dval = numify_v6(row[map.debitCol]);
-      if (dval!=null && Math.abs(dval)>0){ db=dval; if (t==null) t=dval; }
-    }
-    if ((t==null || db==null) && map.transCol!=null){
-      const tval = numify_v6(row[map.transCol]);
-      if (tval!=null && Math.abs(tval)>0){ t=tval; if (db==null) db=tval; }
-    }
-    if (t==null && db==null){
-      let best = {n:null,abs:0};
-      for (let c=0;c<row.length;c++){
-        if ([map.hCol,map.zCol,map.debitCol,map.transCol,map.hzCol].includes(c)) continue;
-        const n = numify_v6(row[c]);
-        if (n!=null && Math.abs(n)>best.abs){ best={n,abs:Math.abs(n)}; }
-      }
-      if (best.n!=null){ t=best.n; db=best.n; }
-    }
-
-    const name = rowBestName(row);
-
-    // 3) carry-forward date logic for merged-date rows
-    if (!d && name && (t!=null || db!=null) && rowHasAnyAmount(row) && lastGoodDate){
-      d = lastGoodDate;
-    }
-    if (d) lastGoodDate = d; // remember good date for following merged rows
-
-    if (MT_DEBUG && r >= 0 && r <= 5){  // Log first 5 data rows for CSV too
-      console.log('[MoneyTron][Debug] Row', r, '- nameCol:', map.nameCol, 'extracted name:', (name ? name.slice(0,40) : 'NO_NAME'), 'amount:', t || db);
-      if (map.nameCol != null) {
-        console.log('[MoneyTron][Debug] Raw value at nameCol:', row[map.nameCol]);
-      }
-    }
-
-    if (!d || !name) continue;
-
-    pushRow(d, name, t, db, creditFlag);
-  }
-
-  if (MT_DEBUG && isXLS){
-    console.log('[MoneyTron][XLS Debug] Final extracted rows:', rows.length);
-  }
-
-  return rows;
-}
-
-function extractFromWorkbook_v6(file){
-  return new Promise(function(res, rej){
-    const reader = new FileReader();
-    const isCSV = /\.csv$/i.test(file.name);
-    const isXLS = /\.xls$/i.test(file.name);
-    reader.onload = function(e){
-      try{
-        let all = [];
-        const data = isCSV ? e.target.result : new Uint8Array(e.target.result);
-        const wb = isCSV ? XLSX.read(data, { type:'string', cellDates:true })
-                         : XLSX.read(data, { type:'array',  cellDates:true });
-        
-        // Debug logging for XLS files
-        if (MT_DEBUG && isXLS){
-          console.log('[MoneyTron][XLS Debug] File:', file.name);
-          console.log('[MoneyTron][XLS Debug] SheetNames:', wb.SheetNames);
-          console.log('[MoneyTron][XLS Debug] Workbook object:', wb);
-          // Log first sheet details
-          if (wb.SheetNames.length > 0){
-            const firstSheet = wb.Sheets[wb.SheetNames[0]];
-            console.log('[MoneyTron][XLS Debug] First sheet object:', firstSheet);
-            console.log('[MoneyTron][XLS Debug] First sheet range:', firstSheet['!ref']);
-            
-            // Try alternate parsing with different options to preserve text better
-            const altMat = XLSX.utils.sheet_to_json(firstSheet, {header:1, raw:false, defval:null});
-            console.log('[MoneyTron][XLS Debug] Alternate parse (raw:false) first 5 rows:', altMat.slice(0,5));
-          }
-        }
-        
-        // Debug: Show first few rows of CSV parsing
-        if (MT_DEBUG && isCSV && wb.SheetNames.length > 0){
-          const firstSheet = wb.Sheets[wb.SheetNames[0]];
-          const mat = XLSX.utils.sheet_to_json(firstSheet, {header:1, raw:true, defval:null});
-          console.log('[MoneyTron][CSV Debug] File:', file.name);
-          console.log('[MoneyTron][CSV Debug] First 3 rows:', mat.slice(0,3));
-          console.log('[MoneyTron][CSV Debug] Header row:', mat[0]);
-          console.log('[MoneyTron][CSV Debug] Normalized header:', (mat[0] || []).map(normAZ));
-        }
-        
-        wb.SheetNames.forEach(sn=>{
-          const ws = wb.Sheets[sn]; if (!ws) return;
-          all = all.concat(extractFromSheet_v6(ws, sn, file.name));
-        });
-        if (MT_DEBUG){ console.log('[MoneyTron][parsed]',{file:file.name,rowsAll:all.length,sample:all.slice(0,12)}); alert('Parsed '+all.length+' rows from '+file.name); }
-        res(all);
-      }catch(err){ rej(err); }
-    };
-    reader.onerror = rej;
-    if (isCSV) reader.readAsText(file,'utf-8'); else reader.readAsArrayBuffer(file);
-  });
-}
-/* ================== END file parsing ================== */
-
-/* ================== Auto-category helpers ================== */
-
-function normHebEnVendor(s){
-  if (!s) return '';
-  // strip RTL/LRM etc
-  s = String(s).replace(/[\u200f\u200e\u202a\u202b\u202c\u2066\u2067\u2068\u2069\u00a0]/g,'');
-  // remove quotes, punctuation except &/+
-  s = s.replace(/[\"'`~!@#%^*()_=\$begin:math:display$$end:math:display${}|;:<>?,.]/g,' ');
-  // common Hebrew company suffixes / noise
-  s = s.replace(/\bבע[\"״']?מ\b/g,'');  // בע"מ variants
-  s = s.replace(/\bח\.?פ\.?\b/g,'');   // ח"פ
-  // latin company suffixes
-  s = s.replace(/\b(ltd|inc|llc)\b/gi,'');
-  // collapse spaces, trim, lowercase
-  s = s.replace(/\s+/g,' ').trim().toLowerCase();
-  return s;
-}
-
-// Token-based similarity (Jaccard-like)
-function tokenSim(a,b){
-  const A = new Set(a.split(' ').filter(Boolean));
-  const B = new Set(b.split(' ').filter(Boolean));
-  if (!A.size || !B.size) return 0;
-  let inter=0;
-  for (const t of A) if (B.has(t)) inter++;
-  const uni = A.size + B.size - inter;
-  return inter/uni;
-}
-
-function amountClose(a,b){
-  const A = Number(a||0), B = Number(b||0);
-  if (!isFinite(A) || !isFinite(B)) return false;
-  const tol = Math.max(1, 0.02 * Math.max(Math.abs(A), Math.abs(B))); // ±1₪ or 2%
-  return Math.abs(A-B) <= tol;
-}
-
-// Build in-memory index from past_data
-function buildPastIndex(past){
-  const arr = Array.isArray(past) ? past
-            : (past && Array.isArray(past.past_data)) ? past.past_data
-            : [];
-  const byVendor = new Map();
-  for (const r of arr){
-    const key = normHebEnVendor(r.name);
-    if (!key) continue;
-    let obj = byVendor.get(key);
-    if (!obj){
-      obj = { rawNames:new Set(), samples:[], catCount:new Map(), subCount:new Map(), typeCount:new Map(), amountList:[] };
-      byVendor.set(key, obj);
-    }
-    obj.rawNames.add(r.name||'');
-    obj.samples.push(r);
-    // frequency tallies
-    if (r.category) obj.catCount.set(r.category, (obj.catCount.get(r.category)||0)+1);
-    if (r.subcategory) obj.subCount.set(r.subcategory, (obj.subCount.get(r.subcategory)||0)+1);
-    if (r.type) obj.typeCount.set(r.type, (obj.typeCount.get(r.type)||0)+1);
-    if (Number.isFinite(Number(r.debit))) obj.amountList.push(Number(r.debit));
-  }
-  return byVendor;
-}
-
-function majority(map){
-  let best = null, max = -1;
-  for (const [k,v] of map.entries()){
-    if (v>max){ max=v; best=k; }
-  }
-  return best;
-}
-
-function bestType(obj){ return majority(obj.typeCount) || 'Expense'; }
-function bestCategory(obj){ return majority(obj.catCount) || ''; }
-function bestSubcategory(obj){ return majority(obj.subCount) || ''; }
-
-function validateCatSub(chosenCat, chosenSub, categories){
-  if (!chosenCat) return {category:'', subcategory:''};
-  const subs = (categories && categories[chosenCat]) || [];
-  if (!chosenSub || subs.indexOf(chosenSub) === -1){
-    // keep category, drop sub if it doesn't exist in categories.json
-    return {category: chosenCat, subcategory: ''};
-  }
-  return {category: chosenCat, subcategory: chosenSub};
-}
-
-// Try to pick cat/sub/type for a single row
-function matchOne(row, byVendor, categories){
-  const nameKey = normHebEnVendor(row.name);
-  const debit = Number(row.debit||row.amount||0);
-
-  // A) Exact name bucket
-  const exact = byVendor.get(nameKey);
-  if (exact){
-    // A1) Name + amount within tolerance
-    const close = exact.samples.filter(s => amountClose(Number(s.debit||s.amount||0), debit));
-    if (close.length){
-      // majority within close matches
-      const catCount = new Map(), subCount = new Map(), typeCount = new Map();
-      for (const s of close){
-        if (s.category) catCount.set(s.category, (catCount.get(s.category)||0)+1);
-        if (s.subcategory) subCount.set(s.subcategory, (subCount.get(s.subcategory)||0)+1);
-        if (s.type) typeCount.set(s.type, (typeCount.get(s.type)||0)+1);
-      }
-      const pickedType = majority(typeCount) || bestType(exact);
-      const pickedCat  = majority(catCount) || bestCategory(exact);
-      const pickedSub  = majority(subCount) || bestSubcategory(exact);
-      const v = validateCatSub(pickedCat, pickedSub, categories);
-      return { ...v, type: pickedType, confidence: 0.98, reason: 'name+amount' };
-    }
-    // A2) Name-only majority
-    const v = validateCatSub(bestCategory(exact), bestSubcategory(exact), categories);
-    return { ...v, type: bestType(exact), confidence: 0.9, reason: 'name-only' };
-  }
-
-  // B) Fuzzy: look across all vendors for near names
-  let best = {score:0, obj:null, key:null};
-  for (const [k,obj] of byVendor.entries()){
-    // quick contains or token Jaccard
-    const s1 = nameKey, s2 = k;
-    const cont = (s1 && s2) && (s1.includes(s2) || s2.includes(s1)) ? 1 : 0;
-    const js  = tokenSim(s1,s2);
-    const score = Math.max(js, cont ? 0.86 : 0);
-    if (score > best.score) best = {score, obj, key:k};
-  }
-  if (best.obj && best.score >= 0.85){
-    // Also see if amount aligns with any of the vendor's amounts
-    const anyClose = best.obj.samples.some(s => amountClose(Number(s.debit||s.amount||0), debit));
-    const pickedType = bestType(best.obj);
-    const pickedCat  = bestCategory(best.obj);
-    const pickedSub  = bestSubcategory(best.obj);
-    const v = validateCatSub(pickedCat, pickedSub, categories);
-    return { ...v, type: pickedType, confidence: anyClose?0.88:0.82, reason: anyClose?'fuzzy+amount':'fuzzy' };
-  }
-
-  // No confident guess
-  return { category:'', subcategory:'', type:(row.type||'Expense'), confidence:0.0, reason:'none' };
-}
-
-async function autoCategorizeRows(builtRows){
-  // load personal data & categories
-  const [pastResp, cats] = await Promise.all([
-  API.getPast().catch(()=>({past_data:[]})),
-  API.getCategories().catch(()=>({}))
-  ]);
-  // pastResp is { past_data: [...] } (server shape) or an array (fallbacks/tests)
-  const pastArr = Array.isArray(pastResp) ? pastResp
-                : (pastResp && Array.isArray(pastResp.past_data)) ? pastResp.past_data
-                : [];
-  const byVendor = buildPastIndex(pastArr);
-  const out = builtRows.map(r=>{
-    const guess = matchOne(r, byVendor, cats);
-    const next = Object.assign({}, r);
-    // Only set fields when confident enough. Subcategory must be present for "Categorized".
-    if (guess.confidence >= 0.85){
-      next.type = guess.type || next.type;
-      next.category = guess.category || '';
-      next.subcategory = guess.subcategory || '';
-      if (next.category || next.subcategory){
-        next.__auto = {confidence: guess.confidence, reason: guess.reason};
-      }
-    }
-    return next;
-  });
-  return out;
 }
 
 /* ================= Components (unchanged UI) ================= */
@@ -1074,28 +502,78 @@ function TitleBar({user,onSwitch}){ return (
   </div>
 );}
 
-function LoginView({onLogin}){
-  const ref=React.useRef(null);
-  function doLogin(){ var n=(ref.current&&ref.current.value||'').trim(); if(!n) return; onLogin(n); }
+function LoginView({onLogin, onSignup}){
+  const nameRef=React.useRef(null);
+  const pwRef=React.useRef(null);
+  const [err,setErr]=React.useState('');
+  const [mode,setMode]=React.useState('login'); // 'login' or 'signup'
+  const [signupName,setSignupName]=React.useState('');
+  const [signupPw,setSignupPw]=React.useState('');
+  const [signupPw2,setSignupPw2]=React.useState('');
+  const [signupEmail,setSignupEmail]=React.useState('');
+  const [signupMsg,setSignupMsg]=React.useState('');
+  function doLogin(){
+    var n=(nameRef.current&&nameRef.current.value||'').trim(); if(!n) return;
+    var pw=(pwRef.current&&pwRef.current.value||'');
+    setErr('');
+    onLogin(n, pw);
+  }
+  function doSignup(){
+    setErr(''); setSignupMsg('');
+    if(!signupName.trim()){ setErr('Username is required.'); return; }
+    if(!signupPw){ setErr('Password is required.'); return; }
+    if(signupPw !== signupPw2){ setErr('Passwords do not match.'); return; }
+    if(!signupEmail.trim()){ setErr('Email is required.'); return; }
+    onSignup(signupName.trim(), signupPw, signupEmail.trim());
+  }
+  // Expose setErr so parent can show errors
+  React.useEffect(()=>{ window._loginSetErr = setErr; window._signupSetMsg = setSignupMsg; return ()=>{ delete window._loginSetErr; delete window._signupSetMsg; }; },[]);
   return (
-    <div className="wrap">
-      <h1 className="title">MoneyTron — Multi-User Money Tracker</h1>
-      <div className="panel frame" style={{maxWidth:900, margin:'0 auto'}}>
-        <div className="topbar" style={{marginBottom:16}}>
-          <input ref={ref} type="text" placeholder="Enter your name (e.g., Roy)" style={{width:300}} onKeyDown={(e)=>{if(e.key==='Enter') doLogin();}}/>
+    <div className="wrap" style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'80vh'}}>
+      <h1 className="title">MoneyTron - Multi-User Money Tracker</h1>
+      {mode === 'login' ? (
+        <div className="login-card">
+          <h2>👋 Welcome</h2>
+          <div className="login-sub">Sign in to manage your finances</div>
+          <input ref={nameRef} type="text" placeholder="Enter your name (e.g., Yoav)" onKeyDown={(e)=>{if(e.key==='Enter' && pwRef.current) pwRef.current.focus();}}/>
+          <input ref={pwRef} type="password" placeholder="Password" style={{marginTop:8}} onKeyDown={(e)=>{if(e.key==='Enter') doLogin();}}/>
+          {err && <div style={{color:'#dc2626',fontSize:13,marginTop:6,fontWeight:600}}>{err}</div>}
           <button className="pill" onClick={doLogin}>Login</button>
+          <div style={{marginTop:14,fontSize:13,color:'#667085'}}>
+            Don't have an account?{' '}
+            <a href="#" onClick={(e)=>{e.preventDefault();setMode('signup');setErr('');}} style={{color:'#6b46c1',fontWeight:700,textDecoration:'none'}}>Sign Up</a>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="login-card">
+          <h2>🚀 Create Account</h2>
+          <div className="login-sub">Sign up to start tracking your finances</div>
+          <input type="text" placeholder="Username" value={signupName} onChange={e=>setSignupName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter') document.getElementById('signup-pw').focus();}}/>
+          <input id="signup-pw" type="password" placeholder="Password" style={{marginTop:8}} value={signupPw} onChange={e=>setSignupPw(e.target.value)} onKeyDown={e=>{if(e.key==='Enter') document.getElementById('signup-pw2').focus();}}/>
+          <input id="signup-pw2" type="password" placeholder="Confirm Password" style={{marginTop:8}} value={signupPw2} onChange={e=>setSignupPw2(e.target.value)} onKeyDown={e=>{if(e.key==='Enter') document.getElementById('signup-email').focus();}}/>
+          <input id="signup-email" type="email" placeholder="Email" style={{marginTop:8}} value={signupEmail} onChange={e=>setSignupEmail(e.target.value)} onKeyDown={e=>{if(e.key==='Enter') doSignup();}}/>
+          {err && <div style={{color:'#dc2626',fontSize:13,marginTop:6,fontWeight:600}}>{err}</div>}
+          {signupMsg && <div style={{color:'#16a34a',fontSize:13,marginTop:6,fontWeight:600}}>{signupMsg}</div>}
+          <button className="pill" onClick={doSignup}>Sign Up</button>
+          <div style={{marginTop:14,fontSize:13,color:'#667085'}}>
+            Already have an account?{' '}
+            <a href="#" onClick={(e)=>{e.preventDefault();setMode('login');setErr('');setSignupMsg('');}} style={{color:'#6b46c1',fontWeight:700,textDecoration:'none'}}>Login</a>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 /* ---------- Categories ---------- */
-function CategoryCard({cat, subs, onDeleteCat, onAddSub, onDeleteSub}){
+function CategoryCard({cat, subs, onDeleteCat, onAddSub, onDeleteSub, searchQuery}){
   const [subInput,setSubInput]=React.useState('');
   function add(){ if(subInput.trim()){ onAddSub(cat, subInput.trim()); setSubInput(''); } }
+  const sq = (searchQuery||'').trim().toLowerCase();
+  const catMatch = sq && cat.toLowerCase().includes(sq);
+  const subMatch = (s) => sq && String(s).toLowerCase().includes(sq);
   return (
-    <div className="cat-card" dir="auto">
+    <div className={'cat-card' + (catMatch ? ' search-highlight' : '')} dir="auto">
       <div className="cat-head">
         <div className="cat-name" dir="auto">{cat}</div>
         <span className="badge">{(subs||[]).length} subcategories</span>
@@ -1105,7 +583,7 @@ function CategoryCard({cat, subs, onDeleteCat, onAddSub, onDeleteSub}){
       <div>
         <div>{(!subs || subs.length===0) && <div className="muted">No subcategories yet.</div>}
           {(subs||[]).map(s=>(
-            <span className="chip" key={s} dir="auto">{s}
+            <span className={'chip' + (subMatch(s) ? ' search-highlight' : '')} key={s} dir="auto">{s}
               <a href="#" onClick={(e)=>{e.preventDefault(); onDeleteSub(cat,s);}} title="Remove">×</a>
             </span>
           ))}
@@ -1148,7 +626,7 @@ function CategoriesTab({user, categories, onSaved}){
       </div>
       <div className="cat-grid">
         {filtered.length===0 && <div className="panel" style={{gridColumn:'1 / -1'}}>No categories match your search.</div>}
-        {filtered.map(c=><CategoryCard key={c} cat={c} subs={cats[c]||[]} onDeleteCat={deleteCategory} onAddSub={addSub} onDeleteSub={delSub}/>)}
+        {filtered.map(c=><CategoryCard key={c} cat={c} subs={cats[c]||[]} onDeleteCat={deleteCategory} onAddSub={addSub} onDeleteSub={delSub} searchQuery={q}/>)}
       </div>
     </React.Fragment>
   );
@@ -1156,14 +634,23 @@ function CategoriesTab({user, categories, onSaved}){
 
 /* ---------- Transactions ---------- */
 function TransactionsTab({rows,setRows,categories,onSaved}){
-  const [msg,setMsg]=React.useState(''); const [sortKey,setSortKey]=React.useState('date'); const [sortDir,setSortDir]=React.useState('asc');
+  const [msg,setMsg]=React.useState(''); const [sortKey,setSortKey]=React.useState('date'); const [sortDir,setSortDir]=React.useState('desc');
   const [q,setQ]=React.useState('');
+  // Upload modal state
+  const [showUploadModal, setShowUploadModal] = React.useState(false);
+  const [pendingFile, setPendingFile] = React.useState(null);
+  const [uploadTag, setUploadTag] = React.useState(dayjs().month()+1);
+  const [uploadYear, setUploadYear] = React.useState(dayjs().year());
+  const [uploading, setUploading] = React.useState(false);
+
   function addManual(){
     const now = dayjs();
     const date_iso = now.format('YYYY-MM-DD');
+    const tagVal = (now.month() + 1) + '/' + String(now.year()).slice(-2);
     const r={ 
       id:'m_'+Date.now(), 
-      tag:now.month() + 1, 
+      tag: tagVal, 
+      _tag_manual: false,
       date: date_iso,
       date_iso: date_iso,
       date_str: formatDMY(date_iso),
@@ -1173,70 +660,44 @@ function TransactionsTab({rows,setRows,categories,onSaved}){
     };
     const next=[r].concat(rows); setRows(next); API.saveStage(next).catch(()=>{});
   }
-  async function onUpload(e){
+  // When file is selected, show the upload modal instead of uploading immediately
+  function onFileSelect(e){
     const f=e.target.files && e.target.files[0]; if(!f) return;
-    try{
-      // Ask user for tag and year
-      var suggested=Number(dayjs().format('M'));
-      var tgStr=window.prompt('Enter month tag (1–12) for this upload:', String(suggested));
-      if (!tgStr) { e.target.value=''; return; } // User cancelled
-      var tag=Number(tgStr); 
-      if(!isFinite(tag)||tag<1||tag>12) {
-        alert('Invalid tag. Must be 1-12.');
-        e.target.value='';
-        return;
-      }
-      
-      // Store tag globally so pushRow can validate dates against it
-      window.__currentUploadTag = tag;
-      
-      var suggestedYear=dayjs().year();
-      var yearStr=window.prompt('Enter year for this upload:', String(suggestedYear));
-      if (!yearStr) { e.target.value=''; return; } // User cancelled
-      var year=Number(yearStr);
-      if(!isFinite(year)||year<2000||year>2100) {
-        alert('Invalid year. Must be 2000-2100.');
-        e.target.value='';
-        return;
-      }
-      
-      const extracted=await extractFromWorkbook_v6(f);
-      
-      // Build transactions with user-provided tag and year
-      const built=extracted.map((x,i)=>{
-        const date_iso = x.date_iso || x.date;
-        const date_str = x.date_str || formatDMY(date_iso);
-        
-        return {
-          id:'u_'+i+'_'+Date.now(), 
-          tag: tag,
-          date: date_iso,
-          date_iso: date_iso,
-          date_str: date_str,
-          year: year,
-          month_tag: tag,
-          name: x.name,
-          amount:Math.abs(Number(x.amount||0)), 
-          debit:Number(Math.abs(x.debit||0)),
-          currency:'ILS',
-          type: x.__credit ? 'Income' : 'Expense',
-          category:'', subcategory:'', notes:'', vi:false, manual:false
-        };
-      });
-
-      // Auto-categorize using past_data + categories
-      const autoed = await autoCategorizeRows(built);
-      
-      const invalidCount = extracted.length - autoed.length;
-      setRows(autoed);
-      setMsg(`✅ Imported: ${autoed.length} rows${invalidCount > 0 ? ` | Skipped: ${invalidCount} invalid` : ''} | Tag: ${tag}, Year: ${year}`);
-      await API.saveStage(autoed);
-    }catch(err){ alert('Parse failed: '+err.message); }
+    setPendingFile(f);
+    setUploadTag(dayjs().month()+1);
+    setUploadYear(dayjs().year());
+    setShowUploadModal(true);
     e.target.value='';
+  }
+  // Perform the upload after user confirms tag/year in the modal
+  async function doUpload(){
+    if(!pendingFile) return;
+    var tag=uploadTag, year=uploadYear;
+    if(!isFinite(tag)||tag<1||tag>12){ alert('Tag must be 1–12'); return; }
+    if(!isFinite(year)||year<2000||year>2100){ alert('Year must be 2000–2100'); return; }
+    setUploading(true);
+    try{
+      const result = await API.uploadFile(pendingFile, tag, year);
+      if (!result.ok) { alert(result.error || 'Upload failed'); return; }
+
+      const autoed = result.transactions || [];
+      // Merge with existing staged rows (to support multiple uploads for same month)
+      var existingIds = new Set(rows.map(function(r){return r.id;}));
+      var newRows = autoed.filter(function(r){return !existingIds.has(r.id);});
+      var merged = rows.concat(newRows);
+      var final = merged.length > rows.length ? merged : autoed;
+      setRows(final);
+      setMsg('\u2705 Imported ' + autoed.length + ' rows from "' + pendingFile.name + '" | Tag: ' + tag + '/' + String(year).slice(-2));
+      await API.saveStage(final);
+    }catch(err){ alert('Parse failed: '+err.message); }
+    finally{ setUploading(false); setShowUploadModal(false); setPendingFile(null); }
   }
   function saveAll(){
     if(!rows.length){ alert('No transactions to save'); return; }
-    const need = rows.some(r=>!r.subcategory); if(need){ alert('Please set Sub-category for all rows'); return; }
+    const needCatRows = rows.filter(r=>!r.category);
+    const needSubRows = rows.filter(r=>!r.subcategory);
+    if(needCatRows.length){ alert('Please set Category for all rows. ' + needCatRows.length + ' row(s) missing.'); return; }
+    if(needSubRows.length){ alert('Please set Sub-category for all rows. ' + needSubRows.length + ' row(s) missing.'); return; }
     API.saveTransactions(rows).then(()=>{ setRows([]); setMsg(''); onSaved(); }).catch(err=>alert('Save failed: '+err.message));
   }
   function patch(id,patch){ const i=rows.findIndex(r=>r.id===id); if(i<0) return; const next=rows.slice(); next[i]=Object.assign({},next[i],patch); setRows(next); API.saveStage(next).catch(()=>{}); }
@@ -1270,8 +731,8 @@ function TransactionsTab({rows,setRows,categories,onSaved}){
   function setSort(k){ if(sortKey===k) setSortDir(sortDir==='asc'?'desc':'asc'); else { setSortKey(k); setSortDir('asc'); } }
   function v(r,k){ 
     switch(k){ 
-      case 'tag':return Number(r.tag||0); 
-      case 'date':return new Date(String(r.date||'1900-01-01')); // Return Date object for proper sorting
+      case 'tag':{ const t=String(r.tag||''); const sl=t.indexOf('/'); if(sl>=0){const mm=Number(t.substring(0,sl)||0),yy=Number(t.substring(sl+1)||0); return (yy<100?yy+2000:yy)*100+mm;} return Number(r.year||0)*100+Number(r.month_tag||r.tag||0); }
+      case 'date': { var ds=String(r.date||r.date_iso||'1900-01-01'); var dm=ds.match(/^(\d{2})-(\d{2})-(\d{4})$/); return dm ? new Date(dm[3]+'-'+dm[2]+'-'+dm[1]) : new Date(ds); }
       case 'name':return String(r.name||'').toLowerCase(); 
       case 'amount':return Number(r.amount||0); 
       case 'debit':return Number(r.debit||0); 
@@ -1289,8 +750,10 @@ function TransactionsTab({rows,setRows,categories,onSaved}){
     const x = (q || '').trim().toLowerCase();
     if (!x) return rows;
     return (rows || []).filter(r => {
+      // Build display tag for search: prefer r.tag if it contains '/', otherwise build from month_tag/year
+      const displayTag = String(r.tag||'').includes('/') ? r.tag : ((r.month_tag||r.tag||'') + '/' + String(r.year||'').slice(-2));
       return [
-        r.date, r.name, r.notes, r.category, r.subcategory, r.tag,
+        r.date, r.name, r.notes, r.category, r.subcategory, displayTag,
         String(r.amount||0), String(r.debit||0)
       ].some(v => String(v == null ? '' : v).toLowerCase().includes(x));
     });
@@ -1303,7 +766,7 @@ function TransactionsTab({rows,setRows,categories,onSaved}){
       let c;
       if (sortKey === 'date') {
         // Special handling for date comparison
-        c = vx.getTime() - vy.getTime();
+        c = (vx.getTime()||0) - (vy.getTime()||0);
       } else if (typeof vx==='number'&&typeof vy==='number') {
         c = vx - vy;
       } else {
@@ -1319,7 +782,7 @@ function TransactionsTab({rows,setRows,categories,onSaved}){
     if (!rows.length) { alert('No transactions to delete'); return; }
     if (!window.confirm('Are you sure you want to delete all current (last upload) transactions?')) return;
     try {
-      await fetch('/api/current-month/reset', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-User': localStorage.getItem('user') } });
+      await fetch('/api/current-month/reset', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' } });
       setRows([]);
       setMsg('All current month transactions deleted.');
     } catch (err) {
@@ -1328,7 +791,26 @@ function TransactionsTab({rows,setRows,categories,onSaved}){
   }
   return (
     <React.Fragment>
-      {msg && <div className="panel" style={{marginBottom:12}}>{msg}</div>}
+      {/* Upload Modal */}
+      {showUploadModal && (
+        <div className="modal-overlay" onClick={()=>{ if(!uploading){setShowUploadModal(false);setPendingFile(null);} }}>
+          <div className="modal-card" onClick={e=>e.stopPropagation()}>
+            <h3>📁 Upload File</h3>
+            <p className="muted" style={{margin:'2px 0 8px',fontSize:14}}>{pendingFile && pendingFile.name}</p>
+            <label>Month Tag</label>
+            <select value={uploadTag} onChange={e=>setUploadTag(Number(e.target.value))}>
+              {[1,2,3,4,5,6,7,8,9,10,11,12].map(m=><option key={m} value={m}>{m} - {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m-1]}</option>)}
+            </select>
+            <label>Year</label>
+            <input type="number" value={uploadYear} onChange={e=>setUploadYear(Number(e.target.value))} min="2000" max="2100"/>
+            <div className="modal-actions">
+              <button className="btn" onClick={()=>{setShowUploadModal(false);setPendingFile(null);}} disabled={uploading}>Cancel</button>
+              <button className="btn primary" onClick={doUpload} disabled={uploading}>{uploading?'⏳ Uploading…':'✅ Upload'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {msg && <div className="toast-bar">{msg}</div>}
       <div className="kpis">
         <div className="kpi k1">Total Transactions<span className="n">{(rows.length)}</span></div>
         <div className="kpi k2">Total Amount<span className="n">₪{fmt2(totalSigned)}</span></div>
@@ -1343,7 +825,7 @@ function TransactionsTab({rows,setRows,categories,onSaved}){
         </div>
         <div className="right" style={{display:'flex',alignItems:'center',gap:8}}>
           <label className="btn">📁 Upload
-            <input type="file" accept=".xlsx,.xls,.csv" style={{display:'none'}} onChange={onUpload}/>
+            <input type="file" accept=".xlsx,.xls,.csv" style={{display:'none'}} onChange={onFileSelect}/>
           </label>
           <button className="btn" onClick={addManual}>+ Add Manual Row</button>
           <button className="btn danger" style={{marginLeft:10}} onClick={deleteAllTransactions}>🗑️ Delete All</button>
@@ -1356,7 +838,7 @@ function TransactionsTab({rows,setRows,categories,onSaved}){
           <thead><tr>
             <th className="nosort">✖</th>
             {hdr('Tag','tag','w-tag')}
-            {hdr('Date','date','w-date')}
+            <th className="w-date" onClick={()=>setSort('date')}>Date<br/><span style={{fontSize:'11px',fontWeight:600}}>(DD-MM-YYYY)</span>{sortKey==='date'?(sortDir==='asc'?' ↑':' ↓'):' ↑↓'}</th>
             {hdr('Name','name','w-name')}
             {hdr('Transaction Amount','amount','w-amt')}
             {hdr('Debit Amount (ILS)','debit','w-debit')}
@@ -1379,12 +861,33 @@ function TransactionsTab({rows,setRows,categories,onSaved}){
                   <td className="w-tag">
                     {manual
                       ? <input 
-                          type="number" 
-                          value={(r.month_tag || r.tag)==null?'':(r.month_tag || r.tag)} 
-                          onChange={(e)=>patch(id,{tag:Number(e.target.value||0), month_tag:Number(e.target.value||0)})}
-                          title="Month (1-12)"
+                          type="text" 
+                          value={r.tag_edit != null ? r.tag_edit : (String(r.tag||'').includes('/') ? r.tag : ((r.month_tag||r.tag||'') + '/' + String(r.year||'').slice(-2)))} 
+                          onChange={(e)=>{
+                            // Only allow digits and /
+                            const v = e.target.value.replace(/[^0-9\/]/g, '');
+                            patch(id,{tag_edit: v});
+                          }}
+                          onBlur={(e)=>{
+                            const val = (r.tag_edit != null ? r.tag_edit : '').trim();
+                            const tagMatch = val.match(/^0*(\d{1,2})\/(\d{2})$/);
+                            if(tagMatch){
+                              const mm=Number(tagMatch[1]), yy=Number(tagMatch[2])+2000;
+                              if(mm>=1 && mm<=12){
+                                const normalized = mm + '/' + tagMatch[2];
+                                patch(id,{tag:normalized, month_tag:mm, year:yy, tag_edit:undefined, _tag_manual:true});
+                              } else {
+                                patch(id,{tag_edit:undefined});
+                              }
+                            } else {
+                              patch(id,{tag_edit:undefined});
+                            }
+                          }}
+                          placeholder="e.g. 2/26"
+                          title="Month/Year (M/YY e.g. 2/26)"
+                          style={{width:70,textAlign:'center'}}
                         />
-                      : <span className="ro-tag" title="Month tag">{(r.month_tag!=null ? r.month_tag : (r.tag!=null ? r.tag : '—'))}</span>}
+                      : <span className="ro-tag" title="Month/Year">{String(r.tag||'').includes('/') ? r.tag : ((r.month_tag!=null ? r.month_tag : (r.tag!=null ? r.tag : '')) + '/' + String(r.year||'').slice(-2))}</span>}
                   </td>
 
                   <td className="w-date">
@@ -1394,17 +897,35 @@ function TransactionsTab({rows,setRows,categories,onSaved}){
                         placeholder="DD-MM-YYYY"
                         value={r.date_str || formatDMY(r.date_iso || r.date)} 
                         onChange={(e)=>{
-                          const dmyValue = e.target.value;
+                          // Only allow digits and dashes
+                          const dmyValue = e.target.value.replace(/[^0-9\-]/g, '');
                           const isoValue = parseDMYtoISO(dmyValue);
                           const d = dayjs(isoValue);
-                          patch(id, {
+                          const newMonth = d.isValid() ? d.month() + 1 : (r.month_tag || Number(String(r.tag||'').split('/')[0]) || 1);
+                          const newYear = d.isValid() ? d.year() : (r.year || dayjs().year());
+                          const updates = {
                             date: isoValue,
                             date_iso: isoValue,
                             date_str: dmyValue,
-                            year: d.isValid() ? d.year() : r.year,
-                            month_tag: d.isValid() ? d.month() + 1 : r.month_tag,
-                            tag: d.isValid() ? d.month() + 1 : r.tag
-                          });
+                            month_tag: newMonth,
+                            year: newYear
+                          };
+                          // Only auto-update tag if user hasn't manually set it
+                          if(!r._tag_manual){
+                            updates.tag = newMonth + '/' + String(newYear).slice(-2);
+                          }
+                          patch(id, updates);
+                        }}
+                        onBlur={(e)=>{
+                          // Validate DD-MM-YYYY format on blur
+                          const val = (r.date_str || '').trim();
+                          if(val && !/^\d{2}-\d{2}-\d{4}$/.test(val)){
+                            // Try to auto-fix common patterns
+                            const d = dayjs(parseDMYtoISO(val));
+                            if(d.isValid()){
+                              patch(id, {date_str: d.format('DD-MM-YYYY'), date: d.format('YYYY-MM-DD'), date_iso: d.format('YYYY-MM-DD')});
+                            }
+                          }
                         }}
                       />
                     ) : (
@@ -1462,28 +983,92 @@ function TransactionsTab({rows,setRows,categories,onSaved}){
 /* (Keeping as-is for brevity) */
 
 /* ---------- Data (PAST) — with filters for Tag, Category, Sub-category, Name ---------- */
-function DataTab({past,categories,onSaved}){
+function DataTab({past,categories,onSaved,initialFilter,onDirtyChange}){
   const [rows,setRows]=React.useState(Array.isArray(past)?past.slice():[]);
   const [q,setQ]=React.useState(''); const [sortKey,setSortKey]=React.useState('date'); const [sortDir,setSortDir]=React.useState('asc'); const [saving,setSaving]=React.useState(false);
-  React.useEffect(()=>setRows(Array.isArray(past)?past.slice():[]),[JSON.stringify(past||[])]);
+  const [savedSnapshot,setSavedSnapshot]=React.useState(JSON.stringify(Array.isArray(past)?past:[]));
+  const [showSaveConfirm, setShowSaveConfirm] = React.useState(false);
+  React.useEffect(()=>{ const s=Array.isArray(past)?past.slice():[]; setRows(s); setSavedSnapshot(JSON.stringify(s)); },[JSON.stringify(past||[])]);
+  // Track dirty state
+  const isDirty = React.useMemo(()=> JSON.stringify(rows) !== savedSnapshot, [rows, savedSnapshot]);
+  React.useEffect(()=>{ if(onDirtyChange) onDirtyChange(isDirty); },[isDirty]);
+
+  // Compute human-readable changes summary
+  function getChangesSummary() {
+    const origRows = JSON.parse(savedSnapshot);
+    const origMap = {}; origRows.forEach(r => { if(r.id) origMap[r.id] = r; });
+    const curMap = {}; rows.forEach(r => { if(r.id) curMap[r.id] = r; });
+    const changes = [];
+    // Deleted rows
+    origRows.forEach(r => { if(r.id && !curMap[r.id]) changes.push('Deleted: ' + (r.name || r.id)); });
+    // Added rows
+    rows.forEach(r => { if(r.id && !origMap[r.id]) changes.push('Added: ' + (r.name || r.id)); });
+    // Modified rows
+    const fields = ['tag','month_tag','date','name','amount','debit','type','category','subcategory','notes','vi','currency','year'];
+    rows.forEach(r => {
+      if(!r.id || !origMap[r.id]) return;
+      const orig = origMap[r.id];
+      const diffs = [];
+      fields.forEach(f => {
+        const ov = orig[f] == null ? '' : String(orig[f]);
+        const nv = r[f] == null ? '' : String(r[f]);
+        if(ov !== nv) diffs.push(f + ': "' + ov + '" → "' + nv + '"');
+      });
+      if(diffs.length) changes.push('Modified "' + (r.name||r.id) + '": ' + diffs.join(', '));
+    });
+    return changes;
+  }
+
   const totalTx=rows.length; const catCount=Object.keys(categories||{}).length; 
   const activeMonths=(function(list){var s={}; list.forEach(r=>{var t=String(r.tag||r.month_tag||''); if(t&&t!=='0') s[t]=1;}); return Object.keys(s).length;})(rows);
   // Single filter: select column and enter value
-  // Default: if there are tags, set filterCol to 'tag' and filterVal to max tag
-  const tags = React.useMemo(() => rows.map(r => Number(r.tag)).filter(n => !isNaN(n)), [rows]);
-  const maxTag = tags.length ? Math.max(...tags) : '';
-  const [filterCol, setFilterCol] = React.useState(tags.length ? 'tag' : '');
-  const [filterVal, setFilterVal] = React.useState(tags.length ? String(maxTag) : '');
+  // Default: if there are tags, set filterCol to 'tag' and filterVal to latest tag/year
+  const tags = React.useMemo(() => rows.map(r => String(r.tag||'')).filter(Boolean), [rows]);
+  const defaultTagYear = React.useMemo(() => {
+    // Find the most recent tag/year combo
+    let bestYear = 0, bestTag = 0;
+    (rows || []).forEach(r => {
+      let y = Number(r.year || 0);
+      let t = Number(r.month_tag || 0);
+      // Parse from new tag format if present (e.g. "2/26")
+      const tagStr = String(r.tag || '');
+      const sl = tagStr.indexOf('/');
+      if (sl >= 0) {
+        t = Number(tagStr.substring(0, sl)) || 0;
+        const yyStr = tagStr.substring(sl + 1);
+        y = yyStr.length <= 2 ? (Number(yyStr) || 0) + 2000 : (Number(yyStr) || 0);
+      }
+      if (y > bestYear || (y === bestYear && t > bestTag)) { bestYear = y; bestTag = t; }
+    });
+    return bestTag && bestYear ? bestTag + '/' + String(bestYear).slice(-2) : '';
+  }, [rows]);
+  const [filterCol, setFilterCol] = React.useState(initialFilter ? initialFilter.col : (tags.length ? 'tag' : ''));
+  const [filterVal, setFilterVal] = React.useState(initialFilter ? initialFilter.val : (defaultTagYear || ''));
   // Optional second filter (applies after the first)
-  const [filter2Col, setFilter2Col] = React.useState('');
-  const [filter2Val, setFilter2Val] = React.useState('');
-  // If rows change and maxTag changes, update filterCol/Val if filterCol is empty or tag
+  const [filter2Col, setFilter2Col] = React.useState(initialFilter ? (initialFilter.col2 || '') : '');
+  const [filter2Val, setFilter2Val] = React.useState(initialFilter ? (initialFilter.val2 || '') : '');
+  // Optional third filter (applies after the second)
+  const [filter3Col, setFilter3Col] = React.useState(initialFilter ? (initialFilter.col3 || '') : '');
+  const [filter3Val, setFilter3Val] = React.useState(initialFilter ? (initialFilter.val3 || '') : '');
+  // Apply initialFilter when it changes (cross-tab navigation from summary)
   React.useEffect(() => {
-    if (tags.length && (!filterCol || filterCol === 'tag') && (!filterVal || filterVal !== String(maxTag))) {
-      setFilterCol('tag');
-      setFilterVal(String(maxTag));
+    if (initialFilter && initialFilter.col && initialFilter.val) {
+      setFilterCol(initialFilter.col);
+      setFilterVal(initialFilter.val);
+      setFilter2Col(initialFilter.col2 || '');
+      setFilter2Val(initialFilter.val2 || '');
+      setFilter3Col(initialFilter.col3 || '');
+      setFilter3Val(initialFilter.val3 || '');
     }
-  }, [tags.length, maxTag]);
+  }, [initialFilter && initialFilter.col, initialFilter && initialFilter.val, initialFilter && initialFilter.col2, initialFilter && initialFilter.val2, initialFilter && initialFilter.col3, initialFilter && initialFilter.val3]);
+  // If rows change and defaultTagYear changes, update filterCol/Val if filterCol is empty or tag
+  React.useEffect(() => {
+    if (initialFilter) return; // Don't override initial filter from summary
+    if (defaultTagYear && (!filterCol || filterCol === 'tag') && (!filterVal || filterVal !== defaultTagYear)) {
+      setFilterCol('tag');
+      setFilterVal(defaultTagYear);
+    }
+  }, [defaultTagYear]);
   function patch(id,p){ const i=rows.findIndex(r=>r.id===id); if(i<0) return; const n=rows.slice(); n[i]=Object.assign({},n[i],p); setRows(n); }
   function delRow(id){ setRows(rows.filter(r=>r.id!==id)); }
   function toggleType(id){ const r=rows.find(x=>x.id===id); if(!r) return; patch(id,{type:r.type==='Expense'?'Income':'Expense'}); }
@@ -1529,12 +1114,18 @@ function DataTab({past,categories,onSaved}){
     return Array.from(new Set([...fromData, ...fromCategories]));
   }, [rows, categories]);
 
-  function save(){ setSaving(true); API.savePast(rows).then(()=>{ setSaving(false); onSaved && onSaved(rows); alert('Past data updated.'); }).catch(e=>{ setSaving(false); alert('Save failed: '+e.message); }); }
+  function save(){ 
+    if(isDirty) { setShowSaveConfirm(true); return; }
+  }
+  function doSave() {
+    setShowSaveConfirm(false);
+    setSaving(true); API.savePast(rows).then(()=>{ setSaving(false); setSavedSnapshot(JSON.stringify(rows)); onSaved && onSaved(rows); alert('Past data updated.'); }).catch(e=>{ setSaving(false); alert('Save failed: '+e.message); }); 
+  }
   function setSort(k){ if(sortKey===k) setSortDir(sortDir==='asc'?'desc':'asc'); else { setSortKey(k); setSortDir('asc'); } }
   function v(r,k){ 
     switch(k){ 
-      case 'tag':return Number(r.tag||0); 
-      case 'date':return new Date(String(r.date||'1900-01-01')); // Return Date object for proper sorting
+      case 'tag':{ const t=String(r.tag||''); const sl=t.indexOf('/'); if(sl>=0){const mm=Number(t.substring(0,sl)||0),yy=Number(t.substring(sl+1)||0); return (yy<100?yy+2000:yy)*100+mm;} return Number(r.year||0)*100+Number(r.month_tag||r.tag||0); }
+      case 'date': { var ds=String(r.date||r.date_iso||'1900-01-01'); var dm=ds.match(/^(\d{2})-(\d{2})-(\d{4})$/); return dm ? new Date(dm[3]+'-'+dm[2]+'-'+dm[1]) : new Date(ds); }
       case 'name':return String(r.name||'').toLowerCase(); 
       case 'amount':return Number(r.amount||0); 
       case 'debit':return Number(r.debit||0); 
@@ -1546,42 +1137,56 @@ function DataTab({past,categories,onSaved}){
       default:return ''; 
     } 
   }
+  // Helper: get display tag for a row (e.g. "2/26")
+  function getDisplayTag(r) {
+    if (String(r.tag||'').includes('/')) return String(r.tag);
+    return (r.month_tag||r.tag||'') + '/' + String(r.year||'').slice(-2);
+  }
   const filtered = React.useMemo(() => {
     const x = (q || '').trim().toLowerCase();
     return (rows || []).filter(r => {
       // Enhanced text search (q) - includes numbers
+      const displayTag = getDisplayTag(r);
       const matchText = !x || [
-        r.date, r.name, r.notes, r.category, r.subcategory, r.tag,
+        r.date, r.name, r.notes, r.category, r.subcategory, displayTag,
         String(r.amount||0), String(r.debit||0)
       ].some(v => String(v == null ? '' : v).toLowerCase().includes(x));
       
-      // Single column filter
-      let matchCol = true;
-      if (filterCol && filterVal.trim()) {
-        const val = String(filterVal).toLowerCase();
-        switch (filterCol) {
-          case 'tag': matchCol = String(r.tag == null ? '' : r.tag).toLowerCase().includes(val); break;
-          case 'name': matchCol = String(r.name == null ? '' : r.name).toLowerCase().includes(val); break;
-          case 'category': matchCol = String(r.category == null ? '' : r.category).toLowerCase().includes(val); break;
-          case 'subcategory': matchCol = String(r.subcategory == null ? '' : r.subcategory).toLowerCase().includes(val); break;
-          default: matchCol = true;
+      // Helper: match a single filter column
+      function matchFilter(col, val, row) {
+        if (!col || !val.trim()) return true;
+        const v = String(val).toLowerCase().trim();
+        switch (col) {
+          case 'tag': {
+            // Build display tag for matching (e.g. "2/26")
+            const rowDisplayTag = String(row.tag||'').includes('/') ? String(row.tag) : ((row.month_tag||row.tag||'') + '/' + String(row.year||'').slice(-2));
+            const slash = v.indexOf('/');
+            if (slash >= 0) {
+              const filterTag = v.substring(0, slash).trim();
+              const filterYear = v.substring(slash + 1).trim();
+              // Parse row display tag
+              const rowSlash = rowDisplayTag.indexOf('/');
+              const rowTagPart = rowSlash >= 0 ? rowDisplayTag.substring(0, rowSlash) : rowDisplayTag;
+              const rowYearPart = rowSlash >= 0 ? rowDisplayTag.substring(rowSlash + 1) : '';
+              const tagMatch = !filterTag || rowTagPart === filterTag;
+              const yearMatch = !filterYear || rowYearPart === filterYear || String(row.year||'').endsWith(filterYear);
+              return tagMatch && yearMatch;
+            }
+            // No slash: just match against display tag
+            return rowDisplayTag.toLowerCase().includes(v);
+          }
+          case 'name': return String(row.name == null ? '' : row.name).toLowerCase().includes(v);
+          case 'category': return String(row.category == null ? '' : row.category).toLowerCase().includes(v);
+          case 'subcategory': return String(row.subcategory == null ? '' : row.subcategory).toLowerCase().includes(v);
+          default: return true;
         }
       }
-      // Second column filter (applied on top of the first)
-      let matchCol2 = true;
-      if (filter2Col && filter2Val.trim()) {
-        const val2 = String(filter2Val).toLowerCase();
-        switch (filter2Col) {
-          case 'tag':         matchCol2 = String(r.tag == null ? '' : r.tag).toLowerCase().includes(val2); break;
-          case 'name':        matchCol2 = String(r.name == null ? '' : r.name).toLowerCase().includes(val2); break;
-          case 'category':    matchCol2 = String(r.category == null ? '' : r.category).toLowerCase().includes(val2); break;
-          case 'subcategory': matchCol2 = String(r.subcategory == null ? '' : r.subcategory).toLowerCase().includes(val2); break;
-          default:            matchCol2 = true;
-        }
-      }
-      return matchText && matchCol && matchCol2;
+      const matchCol = matchFilter(filterCol, filterVal, r);
+      const matchCol2 = matchFilter(filter2Col, filter2Val, r);
+      const matchCol3 = matchFilter(filter3Col, filter3Val, r);
+      return matchText && matchCol && matchCol2 && matchCol3;
     });
-  }, [rows, q, filterCol, filterVal, filter2Col, filter2Val]);
+  }, [rows, q, filterCol, filterVal, filter2Col, filter2Val, filter3Col, filter3Val]);
   // No longer need tagOptions, catOptions, subOptions, nameOptions
   const view=React.useMemo(()=>{ 
     const a=filtered.slice(); 
@@ -1590,7 +1195,7 @@ function DataTab({past,categories,onSaved}){
       let c;
       if (sortKey === 'date') {
         // Special handling for date comparison
-        c = vx.getTime() - vy.getTime();
+        c = (vx.getTime()||0) - (vy.getTime()||0);
       } else if (typeof vx==='number'&&typeof vy==='number') {
         c = vx - vy;
       } else {
@@ -1603,6 +1208,22 @@ function DataTab({past,categories,onSaved}){
   function hdr(lbl,key,cls){ const ar=sortKey===key?(sortDir==='asc'?' ↑':' ↓'):' ↑↓'; return <th className={cls||''} onClick={()=>setSort(key)}>{lbl}{ar}</th>; }
   return (
     <React.Fragment>
+      {/* Save confirmation modal showing all changes */}
+      {showSaveConfirm && (
+        <div className="modal-overlay" style={{alignItems:'flex-start',paddingTop:'5vh'}} onClick={()=>setShowSaveConfirm(false)}>
+          <div className="modal-card" onClick={e=>e.stopPropagation()} style={{maxHeight:'80vh',overflow:'auto'}}>
+            <h3>💾 Confirm Save Changes</h3>
+            <p style={{margin:'4px 0 12px',fontSize:13,color:'#667085'}}>The following changes will be saved:</p>
+            <div style={{maxHeight:'50vh',overflowY:'auto',background:'#f9fafb',borderRadius:10,padding:12,fontSize:13,lineHeight:'1.8'}}>
+              {getChangesSummary().length ? getChangesSummary().map((c,i) => <div key={i} style={{borderBottom:'1px solid #e5e7eb',padding:'4px 0'}} dir="auto">{c}</div>) : <div className="muted">No changes detected.</div>}
+            </div>
+            <div className="modal-actions">
+              <button className="btn" onClick={()=>setShowSaveConfirm(false)}>Cancel</button>
+              <button className="btn primary" onClick={doSave}>✅ Save</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="section-title">📊 Transaction Data</div>
       <div className="kpis">
         <div className="kpi k1">Total Transactions<span className="n">{(totalTx)}</span></div>
@@ -1624,7 +1245,7 @@ function DataTab({past,categories,onSaved}){
                 <div style={{display:'flex',gap:8,alignItems:'center'}}>
                   <select className="input-xs" style={{minWidth:120,height:'40px'}} value={filterCol} onChange={e=>setFilterCol(e.target.value)}>
                     <option value="">Filter by…</option>
-                    <option value="tag">Tag</option>
+                    <option value="tag">Tag (month/year)</option>
                     <option value="name">Name</option>
                     <option value="category">Category</option>
                     <option value="subcategory">Sub-category</option>
@@ -1641,7 +1262,7 @@ function DataTab({past,categories,onSaved}){
                       <input className="input-xs" style={{minWidth:80,height:'40px'}} type="text" placeholder="Type…" value={filterVal} onChange={e=>setFilterVal(e.target.value)} disabled={!filterCol}/>
                     </div>
                   ) : (
-                    <input className="input-xs" style={{minWidth:120,height:'40px'}} type="text" placeholder="Value" value={filterVal} onChange={e=>setFilterVal(e.target.value)} disabled={!filterCol}/>
+                    <input className="input-xs" style={{minWidth:120,height:'40px'}} type="text" placeholder={filterCol === 'tag' ? 'e.g. 2/26' : 'Value'} value={filterVal} onChange={e=>setFilterVal(e.target.value)} disabled={!filterCol}/>
                   )}
                 </div>
               </div>
@@ -1651,7 +1272,7 @@ function DataTab({past,categories,onSaved}){
                 <div style={{display:'flex',gap:8,alignItems:'center'}}>
                   <select className="input-xs" style={{minWidth:120,height:'40px'}} value={filter2Col} onChange={e=>setFilter2Col(e.target.value)} disabled={!filterCol}>
                     <option value="">(optional)…</option>
-                    <option value="tag">Tag</option>
+                    <option value="tag">Tag (month/year)</option>
                     <option value="name">Name</option>
                     <option value="category">Category</option>
                     <option value="subcategory">Sub-category</option>
@@ -1668,18 +1289,46 @@ function DataTab({past,categories,onSaved}){
                       <input className="input-xs" style={{minWidth:80,height:'40px'}} type="text" placeholder="Type…" value={filter2Val} onChange={e=>setFilter2Val(e.target.value)} disabled={!filter2Col || !filterCol}/>
                     </div>
                   ) : (
-                    <input className="input-xs" style={{minWidth:120,height:'40px'}} type="text" placeholder="Second value" value={filter2Val} onChange={e=>setFilter2Val(e.target.value)} disabled={!filter2Col || !filterCol}/>
+                    <input className="input-xs" style={{minWidth:120,height:'40px'}} type="text" placeholder={filter2Col === 'tag' ? 'e.g. 2/26' : 'Second value'} value={filter2Val} onChange={e=>setFilter2Val(e.target.value)} disabled={!filter2Col || !filterCol}/>
+                  )}
+                </div>
+              </div>
+              {/* Tertiary */}
+              <div style={{display:'flex',flexDirection:'column',alignItems:'flex-start',justifyContent:'center'}}>
+                <label style={{fontWeight:600,marginBottom:4,marginLeft:2}}>Tertiary</label>
+                <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                  <select className="input-xs" style={{minWidth:120,height:'40px'}} value={filter3Col} onChange={e=>setFilter3Col(e.target.value)} disabled={!filter2Col}>
+                    <option value="">(optional)…</option>
+                    <option value="tag">Tag (month/year)</option>
+                    <option value="name">Name</option>
+                    <option value="category">Category</option>
+                    <option value="subcategory">Sub-category</option>
+                  </select>
+                  {(filter3Col === 'category' || filter3Col === 'subcategory') ? (
+                    <div style={{display:'flex',gap:4,alignItems:'center'}}>
+                      <select className="input-xs" style={{minWidth:120,height:'40px'}} value={filter3Val} onChange={e=>setFilter3Val(e.target.value)} disabled={!filter3Col || !filter2Col}>
+                        <option value="">All {filter3Col}s</option>
+                        {(filter3Col === 'category' ? categoryOptions : subcategoryOptions).map(opt => 
+                          <option key={opt} value={opt}>{opt}</option>
+                        )}
+                      </select>
+                      <span style={{fontSize:'12px',color:'#6b7280'}}>or</span>
+                      <input className="input-xs" style={{minWidth:80,height:'40px'}} type="text" placeholder="Type…" value={filter3Val} onChange={e=>setFilter3Val(e.target.value)} disabled={!filter3Col || !filter2Col}/>
+                    </div>
+                  ) : (
+                    <input className="input-xs" style={{minWidth:120,height:'40px'}} type="text" placeholder={filter3Col === 'tag' ? 'e.g. 2/26' : 'Third value'} value={filter3Val} onChange={e=>setFilter3Val(e.target.value)} disabled={!filter3Col || !filter2Col}/>
                   )}
                 </div>
               </div>
             </div>
-            {(filterCol||filterVal||filter2Col||filter2Val) && (
+            {(filterCol||filterVal||filter2Col||filter2Val||filter3Col||filter3Val) && (
               <button
                 className="btn btn-xs"
                 style={{alignSelf:'center',marginLeft:8,marginBottom:0,height:'40px'}}
                 onClick={() => {
                   setFilterCol(''); setFilterVal('');
                   setFilter2Col(''); setFilter2Val('');
+                  setFilter3Col(''); setFilter3Val('');
                 }}>
                 Reset
               </button>
@@ -1695,7 +1344,7 @@ function DataTab({past,categories,onSaved}){
           <thead><tr>
             <th className="nosort">✖</th>
             {hdr('Tag','tag','w-tag')}
-            {hdr('Date','date','w-date')}
+            <th className="w-date" onClick={()=>setSort('date')}>Date<br/><span style={{fontSize:'11px',fontWeight:600}}>(DD-MM-YYYY)</span>{sortKey==='date'?(sortDir==='asc'?' ↑':' ↓'):' ↑↓'}</th>
             {hdr('Name','name','w-name')}
             {hdr('Transaction Amount','amount','w-amt')}
             {hdr('Debit Amount (ILS)','debit','w-debit')}
@@ -1713,13 +1362,31 @@ function DataTab({past,categories,onSaved}){
                   <td style={{width:48}}><button className="btn danger" onClick={()=>delRow(id)}>✖</button></td>
                   <td className="w-tag">
                     <input 
-                      type="number" 
-                      value={r.month_tag || r.tag||''} 
+                      type="text" 
+                      value={r.tag_edit != null ? r.tag_edit : (String(r.tag||'').includes('/') ? r.tag : ((r.month_tag!=null ? r.month_tag : (r.tag!=null ? r.tag : '')) + '/' + String(r.year||'').slice(-2)))} 
                       onChange={(e)=>{
-                        const newTag = Number(e.target.value||0);
-                        patch(id,{tag:newTag, month_tag:newTag});
+                        // Only allow digits and /
+                        const v = e.target.value.replace(/[^0-9\/]/g, '');
+                        patch(id,{tag_edit: v});
                       }}
-                      title="Month (1-12)"
+                      onBlur={(e)=>{
+                        const val = (r.tag_edit != null ? r.tag_edit : '').trim();
+                        const tagMatch = val.match(/^0*(\d{1,2})\/(\d{2})$/);
+                        if(tagMatch){
+                          const mm=Number(tagMatch[1]), yy=Number(tagMatch[2])+2000;
+                          if(mm>=1 && mm<=12){
+                            const normalized = mm + '/' + tagMatch[2];
+                            patch(id,{tag:normalized, month_tag:mm, year:yy, tag_edit:undefined, _tag_manual:true});
+                          } else {
+                            patch(id,{tag_edit:undefined});
+                          }
+                        } else {
+                          patch(id,{tag_edit:undefined});
+                        }
+                      }}
+                      placeholder="e.g. 2/26"
+                      title="Month/Year (M/YY e.g. 2/26)"
+                      style={{width:70,textAlign:'center'}}
                     />
                   </td>
                   <td className="w-date">
@@ -1728,17 +1395,34 @@ function DataTab({past,categories,onSaved}){
                       placeholder="DD-MM-YYYY"
                       value={r.date_str || formatDMY(r.date_iso || r.date)} 
                       onChange={(e)=>{
-                        const dmyValue = e.target.value;
+                        // Only allow digits and dashes
+                        const dmyValue = e.target.value.replace(/[^0-9\-]/g, '');
                         const isoValue = parseDMYtoISO(dmyValue);
                         const d = dayjs(isoValue);
-                        patch(id, {
+                        const newMonth = d.isValid() ? d.month() + 1 : (r.month_tag || Number(String(r.tag||'').split('/')[0]) || 1);
+                        const newYear = d.isValid() ? d.year() : (r.year || dayjs().year());
+                        const updates = {
                           date: isoValue,
                           date_iso: isoValue,
                           date_str: dmyValue,
-                          year: d.isValid() ? d.year() : (r.year || dayjs().year()),
-                          month_tag: d.isValid() ? d.month() + 1 : (r.month_tag || r.tag || 1),
-                          tag: d.isValid() ? d.month() + 1 : (r.tag || 1)
-                        });
+                          year: newYear,
+                          month_tag: newMonth
+                        };
+                        // Only auto-update tag if user hasn't manually set it
+                        if(!r._tag_manual){
+                          updates.tag = newMonth + '/' + String(newYear).slice(-2);
+                        }
+                        patch(id, updates);
+                      }}
+                      onBlur={(e)=>{
+                        // Validate DD-MM-YYYY format on blur
+                        const val = (r.date_str || '').trim();
+                        if(val && !/^\d{2}-\d{2}-\d{4}$/.test(val)){
+                          const d = dayjs(parseDMYtoISO(val));
+                          if(d.isValid()){
+                            patch(id, {date_str: d.format('DD-MM-YYYY'), date: d.format('YYYY-MM-DD'), date_iso: d.format('YYYY-MM-DD')});
+                          }
+                        }
                       }}
                     />
                   </td>
@@ -1778,6 +1462,7 @@ function DataTab({past,categories,onSaved}){
                 </tr>
               );
             }) : <tr><td colSpan="11" style={{textAlign:'center',color:'#6b7280'}}>No saved data yet.</td></tr>}
+            {view.length > 0 && <tr style={{borderTop:'3px solid #6b46c1',backgroundColor:'#f5f3ff'}}><td></td><td></td><td></td><td style={{fontWeight:800,textAlign:'center',color:'#2c2761'}}>{view.length} rows</td><td></td><td style={{fontWeight:800,textAlign:'center',color:'#2c2761'}}>₪{fmt2(view.reduce((a,r)=>a+Number(r.debit||0),0))}</td><td></td><td></td><td></td><td></td><td></td></tr>}
           </tbody>
         </table>
       </div>
@@ -1786,82 +1471,23 @@ function DataTab({past,categories,onSaved}){
 }
 
 /* ---------- Summary (charts etc.) ---------- */
-function SummaryTab({past,active}){
+function SummaryTab({past,active,onNavigateToData}){
   const [err,setErr]=React.useState(''); const [selectedMonth,setSelectedMonth]=React.useState(''); const [subPieCat,setSubPieCat]=React.useState(''); const [expanded,setExpanded]=React.useState({});
   const [monthRangeStart, setMonthRangeStart] = React.useState(-1); // Starting index for 6-month range (-1 = not initialized yet)
   const mRef=React.useRef(null), nRef=React.useRef(null), catRef=React.useRef(null), subRef=React.useRef(null);
   const mChart=React.useRef(null), nChart=React.useRef(null), catPie=React.useRef(null), subPie=React.useRef(null);
-  // Updated aggregation: properly handle income and expense categories/subcategories with correct signs
-  // Use tag/year combination as the key (e.g., "7/25" for July 2025)
-  const agg=React.useMemo(()=>{
-    var monthsSet={}, mio={}, mcdAll={};
-    (past||[]).forEach(r=>{
-      var tag=Number(r.tag||0)||Number(r.month_tag||0);
-      var year=Number(r.year||dayjs().year());
-      if(tag===0) return;
-      
-      // Create month key as "tag/year" (e.g., "7/25" for July 2025)
-      var m = tag + '/' + String(year).slice(-2);
-      var sortKey = year * 100 + tag; // For proper sorting (e.g., 202507 for July 2025)
-      
-      if(!monthsSet[m]) monthsSet[m] = sortKey;
-      
-      var d=Number(r.debit||0);
-      var inc=String(r.type||'').toLowerCase()==='income';
-      if(!mio[m]) mio[m]={income:0,outcome:0};
-      if(inc) mio[m].income+=d; else mio[m].outcome+=d;
-      // ---
-      if(!mcdAll[m]) mcdAll[m]={};
-      var cat=r.category||'Uncategorized', sub=r.subcategory||'—';
-      
-      // Initialize category structure properly for both income and expense tracking
-      if(!mcdAll[m][cat]) mcdAll[m][cat]={
-        total:0, 
-        incomeTotal:0, 
-        expenseTotal:0, 
-        subcategories:{}, 
-        type: inc ? 'Income' : 'Expense'
-      };
-      
-      // Track both totals separately
-      if(inc) {
-        mcdAll[m][cat].incomeTotal += d;
-      } else {
-        mcdAll[m][cat].expenseTotal += d;
-      }
-      
-      // Net total with correct signs: income positive, expense negative
-      mcdAll[m][cat].total = mcdAll[m][cat].incomeTotal - mcdAll[m][cat].expenseTotal;
-      
-      // Set type based on which amount is larger
-      if(mcdAll[m][cat].incomeTotal > mcdAll[m][cat].expenseTotal) {
-        mcdAll[m][cat].type = 'Income';
-      } else if(mcdAll[m][cat].expenseTotal > mcdAll[m][cat].incomeTotal) {
-        mcdAll[m][cat].type = 'Expense';
-      }
-      
-      if(!mcdAll[m][cat].subcategories[sub]) mcdAll[m][cat].subcategories[sub] = {total:0, incomeTotal:0, expenseTotal:0};
-      
-      if(inc) {
-        mcdAll[m][cat].subcategories[sub].incomeTotal += d;
-      } else {
-        mcdAll[m][cat].subcategories[sub].expenseTotal += d;
-      }
-      // Net total with correct signs for subcategories too
-      mcdAll[m][cat].subcategories[sub].total = mcdAll[m][cat].subcategories[sub].incomeTotal - mcdAll[m][cat].subcategories[sub].expenseTotal;
-    });
-    
-    // Sort months by year and tag (chronologically)
-    var months=Object.keys(monthsSet).sort((a,b)=> monthsSet[a] - monthsSet[b]);
-    
-    var monthNet={};
-    months.forEach(m=>{
-      var io=mio[m]||{income:0,outcome:0};
-      monthNet[m]={net:(io.income-io.outcome),income:io.income,outcome:io.outcome};
-    });
-    var outTotals=months.map(m=> (mio[m]&&mio[m].outcome)||0 );
-    return {months, mcdAll, monthNet, outTotals};
-  },[past]);
+  // Fetch aggregation from server instead of computing client-side
+  const [agg, setAgg] = React.useState({months: [], mcdAll: {}, monthNet: {}, outTotals: []});
+  React.useEffect(()=>{
+    API.getSummary().then(data => {
+      setAgg({
+        months: data.months || [],
+        mcdAll: data.mcdAll || {},
+        monthNet: data.monthNet || {},
+        outTotals: data.outTotals || [],
+      });
+    }).catch(e => setErr('Failed to load summary: ' + e.message));
+  }, [past]);
   const months=agg.months, monthCategoryDataAll=agg.mcdAll, monthNet=agg.monthNet, outTotals=agg.outTotals;
   
   // Calculate visible months (last 6 or all if fewer than 6)
@@ -1935,16 +1561,19 @@ function SummaryTab({past,active}){
     if(!months.length) return;
     var ChartLib=window.Chart, DLabels=window.ChartDataLabels; if(DLabels && !window.__mtDLReg){ ChartLib.register(DLabels); window.__mtDLReg=true; }
     const common={responsive:true, maintainAspectRatio:false};
+    const chartMaxMonths = 12;
+    const chartMonths = months.length > chartMaxMonths ? months.slice(-chartMaxMonths) : months;
+    const chartOutTotals = months.length > chartMaxMonths ? outTotals.slice(-chartMaxMonths) : outTotals;
     if(mRef.current){
       const ctx=mRef.current.getContext('2d');
       mChart.current=new ChartLib(ctx,{
         type:'bar',
-        data:{labels:months,datasets:[{label:'Monthly Outcome (₪)',data:outTotals}]},
+        data:{labels:chartMonths,datasets:[{label:'Monthly Outcome (₪)',data:chartOutTotals}]},
         options:Object.assign({},common,{
           plugins:{
             legend:{display:false},
             datalabels:DLabels?{
-              formatter:(v)=>fmt2(v),
+              formatter:(v)=>Math.round(v).toLocaleString(),
               anchor:'end',align:'top',clamp:true
             }:{}
           },
@@ -1954,15 +1583,15 @@ function SummaryTab({past,active}){
     }
     if(nRef.current){
       const ctx=nRef.current.getContext('2d');
-      const nvals=months.map(m=>(monthNet[m]&&monthNet[m].net)||0);
+      const nvals=chartMonths.map(m=>(monthNet[m]&&monthNet[m].net)||0);
       nChart.current=new ChartLib(ctx,{
         type:'bar',
-        data:{labels:months,datasets:[{label:'Net (₪)',data:nvals}]},
+        data:{labels:chartMonths,datasets:[{label:'Net (₪)',data:nvals}]},
         options:Object.assign({},common,{
           plugins:{
             legend:{display:false},
             datalabels:DLabels?{
-              formatter:(v)=>fmt2(v),
+              formatter:(v)=>Math.round(v).toLocaleString(),
               anchor:'end',align:'top',clamp:true
             }:{}
           }
@@ -2088,13 +1717,22 @@ function SummaryTab({past,active}){
                 return (
                   <React.Fragment key={cat}>
                     <tr>
-                      <td><button className="btn btn-xs" onClick={()=>setExpanded(p=>Object.assign({},p,{[cat]:!p[cat]}))}>{exp?'▾':'▸'}</button> <strong>{cat}</strong></td>
+                      <td
+                        style={{cursor:'pointer'}}
+                        title={'Double-click to filter Data tab by "'+cat+'"'}
+                        onDoubleClick={()=>onNavigateToData && onNavigateToData({col:'category',val:cat})}
+                      ><button className="btn btn-xs" onClick={()=>setExpanded(p=>Object.assign({},p,{[cat]:!p[cat]}))}>{exp?'▾':'▸'}</button> <strong>{cat}</strong></td>
                       {displayMonths.map(m=>{ 
                         const cell=monthCategoryDataAll[m]&&monthCategoryDataAll[m][cat]; 
                         const v=cell?cell.total:0; 
                         const isPositive = v > 0;
                         const displayValue = v !== 0 ? (isPositive ? '+' : '') + '₪' + fmt2(Math.abs(v)) : '—';
-                        return <td key={cat+'_'+m}><strong style={{color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : 'inherit'}}>{displayValue}</strong></td>; 
+                        // Extract tag number from month label (e.g. "2025-03" -> "3" or "3" -> "3")
+                        return <td key={cat+'_'+m}
+                          style={{cursor:'pointer'}}
+                          title={'Double-click to filter Data tab by "'+cat+'" in month '+m}
+                          onDoubleClick={()=>onNavigateToData && onNavigateToData({col:'tag',val:m,col2:'category',val2:cat})}
+                        ><strong style={{color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : 'inherit'}}>{displayValue}</strong></td>; 
                       })}
                     </tr>
                     {exp && (function(){
@@ -2111,14 +1749,21 @@ function SummaryTab({past,active}){
                         return hasData;
                       }).map(s=>(
                         <tr key={cat+'__'+s}>
-                          <td className="muted" style={{paddingLeft:42}}>↳ {s}</td>
+                          <td className="muted" style={{paddingLeft:42,cursor:'pointer'}}
+                            title={'Double-click to filter Data tab by category "'+cat+'" + subcategory "'+s+'"'}
+                            onDoubleClick={()=>onNavigateToData && onNavigateToData({col:'category',val:cat,col2:'subcategory',val2:s})}
+                          >↳ {s}</td>
                           {displayMonths.map(m=>{
                             var cell=monthCategoryDataAll[m]&&monthCategoryDataAll[m][cat];
                             var subData=cell?(cell.subcategories[s]||{total:0}):0;
                             var v = typeof subData === 'number' ? subData : subData.total;
                             const isPositive = v > 0;
                             const displayValue = v !== 0 ? (isPositive ? '+' : '') + '₪' + fmt2(Math.abs(v)) : '—';
-                            return <td key={cat+'_'+s+'_'+m} style={{color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : 'inherit'}}>{displayValue}</td>;
+                            return <td key={cat+'_'+s+'_'+m}
+                              style={{color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : 'inherit', cursor:'pointer'}}
+                              title={'Double-click to filter Data tab by "'+s+'" in month '+m+' under "'+cat+'"'}
+                              onDoubleClick={()=>onNavigateToData && onNavigateToData({col:'tag',val:m,col2:'category',val2:cat,col3:'subcategory',val3:s})}
+                            >{displayValue}</td>;
                           })}
                         </tr>
                       ));
@@ -2211,7 +1856,7 @@ function SummaryTab({past,active}){
 
       <div className="grid-2">
         <div className="panel"><div className="section-title" style={{marginTop:0}}>🧩 Categories (Outcome)</div><div className="chart-box"><canvas ref={catRef}></canvas></div></div>
-        <div className="panel"><div className="section-title" style={{marginTop:0}}>🍰 Sub-categories — {subPieCat || '—'}</div><div className="chart-box"><canvas ref={subRef}></canvas></div></div>
+        <div className="panel"><div className="section-title" style={{marginTop:0}}>🍰 Sub-categories - {subPieCat || '-'}</div><div className="chart-box"><canvas ref={subRef}></canvas></div></div>
       </div>
     </div>
   );
@@ -2237,13 +1882,28 @@ function StatisticsTab({past, categories}){
     const yearTagMap = {}; // { year: Set(tags) }
     
     (past || []).forEach(tx => {
-      if (!tx || !tx.date) return;
-      const dateStr = String(tx.date);
-      if (dateStr.length < 4) return;
+      if (!tx) return;
       
       try {
-        const year = parseInt(dateStr.substring(0, 4));
-        const tag = tx.month_tag || tx.tag;
+        // Prefer the explicit year field; fall back to parsing from date
+        let year = tx.year ? parseInt(tx.year) : 0;
+        if (!year && tx.date) {
+          const dateStr = String(tx.date);
+          if (dateStr.length >= 4) year = parseInt(dateStr.substring(0, 4));
+        }
+        // Parse tag - support both new "month/year" format and old numeric format
+        let tag = 0;
+        const rawTag = String(tx.tag || tx.month_tag || '');
+        if (rawTag.includes('/')) {
+          const parts = rawTag.split('/');
+          tag = parseInt(parts[0]) || 0;
+          if (!year) {
+            const yr = parseInt(parts[1]) || 0;
+            year = yr < 100 ? yr + 2000 : yr;
+          }
+        } else {
+          tag = parseInt(tx.month_tag || tx.tag || 0);
+        }
         
         if (!year || !tag) return;
         
@@ -2354,9 +2014,9 @@ function StatisticsTab({past, categories}){
     setSelectedYears(years);
     setTagsByYear(tagMap);
     setActiveQuickSelect('last3');
-    
-    // Auto-calculate for Last 3 Months
-    setTimeout(() => calculateStatistics('last3'), 100);
+
+    // Auto-calculate using server-side quick filter (avoids stale closure)
+    calculateStatistics('last3');
   }
   
   // Quick filter: Last 6 Months
@@ -2385,6 +2045,9 @@ function StatisticsTab({past, categories}){
     setSelectedYears(years);
     setTagsByYear(tagMap);
     setActiveQuickSelect('last6');
+
+    // Auto-calculate using server-side quick filter
+    calculateStatistics('last6');
   }
   
   // Quick filter: All Time
@@ -2398,6 +2061,9 @@ function StatisticsTab({past, categories}){
     setSelectedYears(years);
     setTagsByYear(tagMap);
     setActiveQuickSelect('alltime');
+
+    // Auto-calculate using server-side quick filter
+    calculateStatistics('alltime');
   }
   
   // Clear all filters
@@ -2676,8 +2342,18 @@ function StatisticsTab({past, categories}){
                       paddingBottom: 4
                     }}
                   >
-                    <div style={{fontSize: 12, fontWeight: 600, color: '#6b46c1', marginBottom: 8}}>
-                      {year}
+                    <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8}}>
+                      <span style={{fontSize: 12, fontWeight: 600, color: '#6b46c1'}}>{year}</span>
+                      <button
+                        className="btn btn-xs"
+                        onClick={() => { setTagsByYear({...tagsByYear, [year]: availableTags.slice()}); setActiveQuickSelect(null); }}
+                        style={{padding:'2px 8px',fontSize:10,borderRadius:10,background:'#eef2ff',color:'#4338ca',border:'1px solid #c7d2fe'}}
+                      >Select All</button>
+                      <button
+                        className="btn btn-xs"
+                        onClick={() => { setTagsByYear({...tagsByYear, [year]: []}); setActiveQuickSelect(null); }}
+                        style={{padding:'2px 8px',fontSize:10,borderRadius:10,background:'#fef2f2',color:'#991b1b',border:'1px solid #fecaca'}}
+                      >Clear All</button>
                     </div>
                     <div style={{display: 'flex', flexWrap: 'wrap', gap: 6}}>
                       {availableTags.map(tag => (
@@ -2998,7 +2674,7 @@ function StatisticsTab({past, categories}){
                 Summary Statistics
               </h3>
               <p style={{margin: '4px 0 0', fontSize: 13, color: '#667085'}}>
-                Based on {selectedMonthCount} selected month{selectedMonthCount !== 1 ? 's' : ''}, {selectedType.toLowerCase()} transactions
+                Based on {selectedMonthCount} selected month{selectedMonthCount !== 1 ? 's' : ''} & {selectedType.toLowerCase()} transactions
               </p>
             </div>
             
@@ -3056,70 +2732,94 @@ function StatisticsTab({past, categories}){
                       ₪{fmt2(statsData.summary.max_monthly)}
                     </td>
                   </tr>
+                  <tr style={{
+                    borderTop: '3px solid #6b46c1',
+                    backgroundColor: '#fde047',
+                    boxShadow: '0 4px 12px rgba(234, 179, 8, 0.3)'
+                  }}>
+                    <td style={{backgroundColor: '#fde047', padding: '12px', fontSize: 15, fontWeight: 800, color: '#1f1b2e'}}>
+                      Total Over Period
+                    </td>
+                    <td style={{backgroundColor: '#fde047', textAlign: 'right', padding: '12px', fontSize: 15, fontWeight: 800, color: '#1f1b2e'}}>
+                      ₪{fmt2(statsData.summary.total_over_period||0)}
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
           </div>
-          
-          {/* Top Categories Card */}
-          {statsData.top_categories && statsData.top_categories.length > 0 && (
-            <div className="panel" style={{borderRadius: 16, padding: 24}}>
-              <div style={{marginBottom: 16}}>
-                <h3 style={{margin: 0, fontSize: 18, fontWeight: 700, color: '#30334b'}}>
-                  🏆 Top {selectedCategories.length === 1 ? 'Subcategories' : 'Categories'}
-                </h3>
-                <p style={{margin: '4px 0 0', fontSize: 13, color: '#667085'}}>
-                  Highest spending {selectedCategories.length === 1 ? 'subcategories' : 'categories'} in the selected period
-                </p>
-              </div>
-              
-              <div style={{overflowX: 'auto'}}>
-                <table>
-                  <thead>
-                    <tr style={{background: 'linear-gradient(180deg, #8b5cf6, #7c3aed)'}}>
-                      <th style={{width: 60, fontSize: 13, letterSpacing: '0.5px'}}>Rank</th>
-                      <th style={{textAlign: 'left', fontSize: 13, letterSpacing: '0.5px'}}>
-                        {selectedCategories.length === 1 ? 'Subcategory' : 'Category'}
-                      </th>
-                      <th style={{textAlign: 'right', fontSize: 13, letterSpacing: '0.5px'}}>Total (₪)</th>
-                      <th style={{textAlign: 'right', fontSize: 13, letterSpacing: '0.5px'}}>Avg/Month (₪)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {statsData.top_categories.map((item, idx) => (
-                      <tr key={idx}>
-                        <td style={{textAlign: 'center'}}>
-                          <span style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: 28,
-                            height: 28,
-                            borderRadius: '50%',
-                            background: idx === 0 ? '#fbbf24' : idx === 1 ? '#d1d5db' : idx === 2 ? '#f59e0b' : '#e5e7eb',
-                            color: idx < 2 ? '#fff' : '#4b5563',
-                            fontWeight: 800,
-                            fontSize: 13
-                          }}>
-                            {idx + 1}
-                          </span>
-                        </td>
-                        <td style={{fontSize: 14, fontWeight: 600}}>{item.name}</td>
-                        <td style={{textAlign: 'right', fontSize: 14, fontWeight: 700, color: '#6b46c1'}}>
-                          ₪{fmt2(item.total)}
-                        </td>
-                        <td style={{textAlign: 'right', fontSize: 14, color: '#667085'}}>
-                          ₪{fmt2(item.avg_per_month)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+
+          {/* Pie Chart for selected categories */}
+          {statsData && statsData.top_categories && statsData.top_categories.length > 0 && (
+            <StatsPieChart statsData={statsData} selectedCategories={selectedCategories} />
           )}
+
         </React.Fragment>
       )}
+    </div>
+  );
+}
+
+/* ---------- Statistics Pie Chart ---------- */
+function StatsPieChart({statsData, selectedCategories}) {
+  const pieRef = React.useRef(null);
+  const pieChartRef = React.useRef(null);
+  React.useEffect(() => {
+    if (pieChartRef.current) { try { pieChartRef.current.destroy(); } catch(_){} pieChartRef.current = null; }
+    if (!pieRef.current || !statsData || !statsData.top_categories || !statsData.top_categories.length) return;
+    const catTotals = {};
+    statsData.top_categories.forEach(c => { catTotals[c.name] = c.total; });
+    const labels = Object.keys(catTotals);
+    const data = labels.map(l => catTotals[l]);
+    if (!labels.length) return;
+    const ChartLib = window.Chart;
+    const DLabels = window.ChartDataLabels;
+    if (DLabels && !window.__mtDLReg) { ChartLib.register(DLabels); window.__mtDLReg = true; }
+    const total = data.reduce((a,b) => a+b, 0);
+    pieChartRef.current = new ChartLib(pieRef.current.getContext('2d'), {
+      type: 'pie',
+      data: { labels, datasets: [{ data }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'right' },
+          datalabels: DLabels ? {
+            display: function(context) {
+              const numSlices = context.dataset.data.length;
+              const value = context.dataset.data[context.dataIndex];
+              const pct = total ? (value / total * 100) : 0;
+              // Dynamic threshold: fewer slices = show more labels, many slices = hide small ones
+              const threshold = numSlices <= 4 ? 2 : numSlices <= 7 ? 5 : numSlices <= 10 ? 8 : 12;
+              return pct >= threshold;
+            },
+            formatter: (value) => {
+              const pct = total ? (value / total * 100).toFixed(1) : 0;
+              return pct + '%';
+            },
+            color: '#fff',
+            font: { weight: 'bold', size: 12 }
+          } : { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const label = context.label || '';
+                const value = context.parsed || 0;
+                const pct = total ? (value / total * 100).toFixed(1) : 0;
+                return [label + ': ₪' + fmt2(value), pct + '%'];
+              }
+            }
+          }
+        }
+      }
+    });
+    return () => { if (pieChartRef.current) { try { pieChartRef.current.destroy(); } catch(_){} } };
+  }, [statsData]);
+  return (
+    <div className="panel" style={{marginBottom: 24, borderRadius: 16, padding: 24}}>
+      <h3 style={{margin: '0 0 12px', fontSize: 18, fontWeight: 700, color: '#30334b'}}>
+        🧩 Pie Chart Of Selected Period & Categories
+      </h3>
+      <div className="chart-box" style={{height: 320}}><canvas ref={pieRef}></canvas></div>
     </div>
   );
 }
@@ -3162,7 +2862,7 @@ function SettingsTab({ user, past, categories, stage, settings, onReload }){
   const monthsSet={}; let lastTxVar=null, totalSpending=0;
   (past||[]).forEach(r=>{ const d=Number(r.debit||0); if(String(r.type||'').toLowerCase()!=='income') totalSpending+=d; const m=Number(r.tag||0); if(m>0) monthsSet[m]=1; if(r.date){ if(!lastTxVar || dayjs(r.date).isAfter(dayjs(lastTxVar.date))) lastTxVar=r; }});
   const avgMonthly=Object.keys(monthsSet).length? totalSpending/Object.keys(monthsSet).length : 0;
-  const lastTxLabel=lastTxVar ? `${lastTxVar.date} — ${lastTxVar.name}` : 'No transactions yet';
+  const lastTxLabel=lastTxVar ? `${lastTxVar.date} - ${lastTxVar.name}` : 'No transactions yet';
 
   return (
     <div className="panel">
@@ -3220,6 +2920,11 @@ function SettingsTab({ user, past, categories, stage, settings, onReload }){
         </div>
 
         <div className="panel">
+          <div className="section-title">🔒 Change Password</div>
+          <ChangePasswordForm/>
+        </div>
+
+        <div className="panel">
           <div className="section-title">ℹ️ App Information</div>
           <ul style={{marginTop:6}}>
             <li>MoneyTron Multi-User v4.0</li>
@@ -3236,6 +2941,268 @@ function SettingsTab({ user, past, categories, stage, settings, onReload }){
   );
 }
 
+/* ---------- Change Password Form ---------- */
+function ChangePasswordForm({onDone}){
+  const [oldPw,setOldPw]=React.useState('');
+  const [newPw,setNewPw]=React.useState('');
+  const [confirmPw,setConfirmPw]=React.useState('');
+  const [msg,setMsg]=React.useState('');
+  const [err,setErr]=React.useState('');
+  function submit(){
+    setMsg(''); setErr('');
+    if(!newPw){ setErr('New password cannot be empty.'); return; }
+    if(newPw !== confirmPw){ setErr('Passwords do not match.'); return; }
+    API.changePassword(oldPw, newPw).then(r=>{
+      if(!r.ok){ setErr(r.error || 'Failed to change password.'); return; }
+      setMsg('Password changed successfully!'); setOldPw(''); setNewPw(''); setConfirmPw('');
+      if(onDone) setTimeout(onDone, 1200);
+    }).catch(e=>setErr('Error: '+e.message));
+  }
+  return (
+    <div className="controls" style={{flexDirection:'column', alignItems:'stretch'}}>
+      <label>Current Password</label>
+      <input type="password" value={oldPw} onChange={e=>setOldPw(e.target.value)} placeholder="Enter current password"/>
+      <label style={{marginTop:8}}>New Password</label>
+      <input type="password" value={newPw} onChange={e=>setNewPw(e.target.value)} placeholder="Enter new password"/>
+      <label style={{marginTop:8}}>Confirm New Password</label>
+      <input type="password" value={confirmPw} onChange={e=>setConfirmPw(e.target.value)} placeholder="Confirm new password" onKeyDown={e=>{if(e.key==='Enter') submit();}}/>
+      {err && <div style={{color:'#dc2626',fontSize:13,marginTop:6,fontWeight:600}}>{err}</div>}
+      {msg && <div style={{color:'#16a34a',fontSize:13,marginTop:6,fontWeight:600}}>{msg}</div>}
+      <div style={{marginTop:10}}><button className="btn primary" onClick={submit}>Change Password</button></div>
+    </div>
+  );
+}
+
+/* ---------- Tutorial Tab (Full Guide) ---------- */
+function TutorialTab(){
+  const [lightboxImg, setLightboxImg] = React.useState(null);
+
+  function Screenshot({src, alt, caption}) {
+    return (
+      <div style={{textAlign:'center',margin:'16px 0'}}>
+        <img
+          src={src} alt={alt}
+          style={{maxWidth:'100%',borderRadius:14,boxShadow:'0 8px 28px rgba(30,20,70,.18)',cursor:'pointer',transition:'transform .15s',border:'2px solid #e0ddf5'}}
+          onClick={()=>setLightboxImg(src)}
+          onMouseOver={e=>e.target.style.transform='scale(1.02)'}
+          onMouseOut={e=>e.target.style.transform='scale(1)'}
+        />
+        {caption && <div style={{marginTop:8,fontSize:13,color:'#667085',fontStyle:'italic'}}>{caption}</div>}
+      </div>
+    );
+  }
+
+  function StepCard({number, title, children}) {
+    return (
+      <div style={{display:'flex',gap:16,margin:'18px 0',padding:16,background:'#faf9ff',borderRadius:14,border:'1px solid #e0ddf5'}}>
+        <div style={{minWidth:40,height:40,borderRadius:'50%',background:'linear-gradient(180deg,#7c3aed,#5b21b6)',color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,fontSize:18,flexShrink:0}}>{number}</div>
+        <div style={{flex:1}}>
+          <div style={{fontWeight:700,fontSize:16,color:'#2c2761',marginBottom:4}}>{title}</div>
+          <div style={{fontSize:14,color:'#4a4d6b',lineHeight:1.6}}>{children}</div>
+        </div>
+      </div>
+    );
+  }
+
+  function SectionDivider({title}) {
+    return (
+      <div style={{margin:'36px 0 18px',borderBottom:'2px solid #e0ddf5',paddingBottom:8}}>
+        <h2 style={{color:'#2c2761',margin:0,fontSize:22}}>{title}</h2>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="section-title">📖 MoneyTron Tutorial & Guide</div>
+      <div className="section-sub">Everything you need to know to get started</div>
+      <div className="thin-underline"></div>
+      {/* Lightbox */}
+      {lightboxImg && (
+        <div className="modal-overlay" onClick={()=>setLightboxImg(null)} style={{zIndex:10000,cursor:'zoom-out'}}>
+          <img src={lightboxImg} style={{maxWidth:'90vw',maxHeight:'90vh',borderRadius:16,boxShadow:'0 24px 64px rgba(0,0,0,.5)'}} onClick={e=>e.stopPropagation()}/>
+          <button onClick={()=>setLightboxImg(null)} style={{position:'absolute',top:20,right:20,background:'rgba(255,255,255,.9)',border:'none',borderRadius:'50%',width:40,height:40,fontSize:20,fontWeight:800,cursor:'pointer',boxShadow:'0 4px 12px rgba(0,0,0,.3)'}}>✕</button>
+        </div>
+      )}
+      <div className="panel" style={{minHeight:400}}>
+
+        {/* ── Welcome Section ── */}
+        <div style={{textAlign:'center',margin:'20px 0 30px'}}>
+          <div style={{fontSize:64,marginBottom:12}}>🎉</div>
+          <h2 style={{color:'#2c2761',margin:'0 0 8px',fontSize:28}}>Welcome to MoneyTron!</h2>
+          <p style={{color:'#667085',fontSize:16,maxWidth:600,margin:'0 auto',lineHeight:1.7}}>Your personal multi-user money tracking app. This guide will walk you through everything you need to know to manage your finances like a pro.</p>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:16,margin:'24px 0'}}>
+          {[{icon:'💰',title:'Track Transactions',desc:'Upload bank files or add transactions manually'},{icon:'📊',title:'Visual Summary',desc:'Charts and graphs of your spending patterns'},{icon:'📈',title:'Deep Statistics',desc:'Filter, compare, and analyze across months'},{icon:'📄',title:'Full Data Access',desc:'View, edit, and manage all historical data'},{icon:'📚',title:'Smart Categories',desc:'Organize spending into categories & subcategories'},{icon:'🔐',title:'Multi-User',desc:'Each user has their own secure data'}].map((f,i)=>(
+            <div key={i} style={{background:'#fff',borderRadius:16,padding:18,textAlign:'center',boxShadow:'0 4px 16px rgba(16,24,40,.06)',border:'1px solid #f0eeff'}}>
+              <div style={{fontSize:32,marginBottom:8}}>{f.icon}</div>
+              <div style={{fontWeight:700,color:'#2c2761',marginBottom:4}}>{f.title}</div>
+              <div style={{fontSize:13,color:'#667085'}}>{f.desc}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Good-to-know properties (moved from Tips & Tricks) */}
+        <div style={{display:'grid',gap:14,margin:'24px 0'}}>
+          {[
+            {icon:'🏷️',title:'Tag Format',desc:'Tags follow the format "Month/Year" (e.g., 1/26 = January 2026). They group transactions by period.'},
+            {icon:'💱',title:'Currency Toggle',desc:'Click the currency button (₪/$) next to any amount to switch between your enabled currencies (ILS, USD, EUR, GBP). Configure which currencies are available in Settings.'},
+            {icon:'🚩',title:'VI Flag',desc:'Mark transactions as "VI" (Verify/Investigate) to flag suspicious or unusual entries for review. These rows show in red.'},
+            {icon:'🪄',title:'Auto-Categorize',desc:'When you upload a file, MoneyTron automatically categorizes transactions based on your past data and patterns. The more you use the app, the smarter it gets.'},
+            {icon:'📤',title:'File Formats',desc:'Upload Excel (.xlsx) or CSV files. The parser supports common Israeli bank formats (Leumi, Hapoalim, Max, Cal, etc.).'},
+            {icon:'🔗',title:'Cross-Tab Navigation',desc:'Double-click cells in the Summary comparison table to jump directly to filtered Data view for that category/month.'},
+            {icon:'💾',title:'Auto-Save',desc:'The Transactions tab auto-saves your staged data when you switch tabs. The Data tab warns you about unsaved changes before leaving.'},
+            {icon:'📅',title:'Date Formats',desc:'Dates are displayed as DD-MM-YYYY everywhere. You can type dates in various formats and the app normalizes them automatically.'},
+          ].map((tip,i)=>(
+            <div key={i} style={{display:'flex',gap:14,padding:16,background:'#faf9ff',borderRadius:14,border:'1px solid #e0ddf5'}}>
+              <div style={{fontSize:28,flexShrink:0}}>{tip.icon}</div>
+              <div>
+                <div style={{fontWeight:700,color:'#2c2761',marginBottom:2}}>{tip.title}</div>
+                <div style={{fontSize:14,color:'#4a4d6b',lineHeight:1.6}}>{tip.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Quick Startup (first-time users) ── */}
+        <div style={{background:'linear-gradient(135deg,#ede9fe,#f5f3ff)',borderRadius:16,padding:24,margin:'20px 0',border:'2px solid #ddd6fe'}}>
+          <div style={{fontWeight:800,color:'#5b21b6',marginBottom:8,fontSize:20}}>🚀 Quick Startup - First Time Users</div>
+          <p style={{color:'#4a4d6b',fontSize:14,margin:'0 0 14px',lineHeight:1.6}}>New to MoneyTron? Follow these steps to get up and running in minutes:</p>
+          <ol style={{margin:0,paddingLeft:20,color:'#4a4d6b',lineHeight:2.2,fontSize:14}}>
+            <li><strong>Create your account</strong> - Click "Sign Up" and enter a username, password, and your email address.</li>
+            <li><strong>Set up categories</strong> - Go to the <strong>Categories</strong> tab and add spending categories (e.g., Food, Transport, Bills) with subcategories (e.g., Groceries, Restaurants under Food).</li>
+            <li><strong>Upload your first file</strong> - In the <strong>Transactions</strong> tab, click "Upload" and select a bank statement file (.xlsx or .csv). Pick the correct month and year.</li>
+            <li><strong>Review & categorize</strong> - MoneyTron auto-categorizes transactions based on patterns. Review the results, fix any that need adjustment, and fill in missing categories.</li>
+            <li><strong>Save to past data</strong> - Click "Save All" to commit your transactions. They'll now appear in Summary and Statistics.</li>
+            <li><strong>Explore your data</strong> - Check the <strong>Summary</strong> tab for charts and the <strong>Statistics</strong> tab for deeper analysis.</li>
+            <li><strong>Repeat monthly</strong> - Each month, upload your new bank statement and save. MoneyTron gets smarter over time!</li>
+          </ol>
+        </div>
+
+        {/* ── Expense vs Income ── */}
+        <div style={{background:'#f0f9ff',borderRadius:16,padding:24,margin:'20px 0',border:'1.5px solid #bae6fd'}}>
+          <div style={{fontWeight:800,color:'#0c4a6e',marginBottom:8,fontSize:20}}>💡 Expense vs. Income - When to Use What</div>
+          <p style={{color:'#334155',fontSize:14,margin:'0 0 14px',lineHeight:1.6}}>Every transaction in MoneyTron is either an <strong>Expense</strong> or <strong>Income</strong>. Here's how to decide:</p>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:14}}>
+            <div style={{background:'#fee2e2',borderRadius:12,padding:16}}>
+              <div style={{fontWeight:800,color:'#991b1b',fontSize:16,marginBottom:6}}>🔴 Expense</div>
+              <p style={{color:'#7f1d1d',fontSize:13,lineHeight:1.6,margin:0}}>Money going <strong>out</strong> of your account. Use for purchases, bills, subscriptions, rent, groceries, fuel, etc.</p>
+              <div style={{marginTop:8,fontSize:12,color:'#991b1b'}}>Examples: Supermarket, Electric bill, Restaurant, Netflix</div>
+            </div>
+            <div style={{background:'#dcfce7',borderRadius:12,padding:16}}>
+              <div style={{fontWeight:800,color:'#065f46',fontSize:16,marginBottom:6}}>🟢 Income</div>
+              <p style={{color:'#14532d',fontSize:13,lineHeight:1.6,margin:0}}>Money coming <strong>in</strong> to your account. Use for salary, freelance payments, refunds, transfers received, etc.</p>
+              <div style={{marginTop:8,fontSize:12,color:'#065f46'}}>Examples: Monthly salary, Tax refund, Side job payment</div>
+            </div>
+          </div>
+          <div style={{background:'#fff',borderRadius:10,padding:12,border:'1px solid #e2e8f0'}}>
+            <p style={{margin:0,fontSize:13,color:'#475569',lineHeight:1.6}}>
+              <strong>How it works:</strong> When you upload a bank file, MoneyTron auto-detects the type based on the sign of the amount. You can always manually toggle a transaction between Expense and Income by clicking the type button in the table. In the <strong>Summary</strong> tab, income appears in green and expenses in red. The "Net" row shows Income minus Expenses.
+            </p>
+          </div>
+        </div>
+
+        {/* ── Sign Up & Login ── */}
+        <SectionDivider title="🔐 Sign Up & Login"/>
+        <p style={{color:'#4a4d6b',lineHeight:1.7}}>MoneyTron supports multiple users. Each user has their own categories, transactions, and settings - completely separate and private.</p>
+        <StepCard number={1} title="Create Your Account">
+          Click <strong>"Sign Up"</strong> on the login page. Enter a username, password, and your email address. Your data is stored locally on the server.
+        </StepCard>
+        <StepCard number={2} title="Login">
+          Enter your username and password. You'll land on the <strong>Transactions</strong> tab - your home base for adding new data.
+        </StepCard>
+        <StepCard number={3} title="Switch Users">
+          Click <strong>"Switch User"</strong> in the top bar to log out and let another user sign in.
+        </StepCard>
+        <StepCard number={4} title="Change Password">
+          Click the <strong>"🔒 Change Password"</strong> button in the top bar to update your password at any time.
+        </StepCard>
+        <Screenshot src="/screenshots/login%20page.png" alt="Login Page" caption="The login and sign-up page"/>
+
+        {/* ── Transactions ── */}
+        <SectionDivider title="💰 Transactions Tab"/>
+        <p style={{color:'#4a4d6b',lineHeight:1.7,marginBottom:16}}>This is where you add new transactions - either by uploading a bank file or adding them manually. Think of it as your "staging area" before saving to permanent records.</p>
+        <StepCard number={1} title="Upload a Bank File">
+          Click <strong>"📁 Upload"</strong> and select an Excel (.xlsx) or CSV file from your bank. Choose the correct <strong>month tag</strong> and <strong>year</strong> in the popup, then confirm. The app will automatically parse and <strong>auto-categorize</strong> your transactions based on your past data.
+        </StepCard>
+        <StepCard number={2} title="Add Manually">
+          Click <strong>"+ Add Manual Row"</strong> to create a new transaction. Fill in the date, name, amount, type (Expense/Income), category, and notes.
+        </StepCard>
+        <StepCard number={3} title="Edit Inline">
+          Click any cell to edit it directly. Change amounts, dates, categories, notes - everything is editable in the table.
+        </StepCard>
+        <StepCard number={4} title="Save to Past Data">
+          When you're happy with your transactions, click <strong>"💾 Save All"</strong> to permanently store them. They'll then appear in Summary and Statistics.
+        </StepCard>
+        <Screenshot src="/screenshots/transactions%20tab.png" alt="Transactions Tab" caption="The transactions staging area with upload and editing"/>
+
+        {/* ── Summary ── */}
+        <SectionDivider title="📊 Summary Tab"/>
+        <p style={{color:'#4a4d6b',lineHeight:1.7,marginBottom:16}}>A visual overview of your financial data. See where your money goes at a glance with interactive charts.</p>
+        <StepCard number={1} title="Comparison Table">
+          A detailed cross-month table showing every category's spending per month. Expand any category to see subcategory breakdowns.
+        </StepCard>
+        <StepCard number={2} title="Drill Down">
+          <strong>Double-click</strong> any category cell in the comparison table to jump to the <strong>Data tab</strong> filtered to that specific category and month.
+        </StepCard>
+        <StepCard number={3} title="Monthly Overview">
+          Navigate between 6-month windows with <strong>Previous / Next</strong> arrows, or click <strong>Latest</strong> to jump to the most recent months.
+        </StepCard>
+        <StepCard number={4} title="Bar Charts">
+          <strong>Monthly Outcome</strong> shows expenses per month. <strong>Monthly Net</strong> shows income minus expenses - green for surplus, red for deficit.
+        </StepCard>
+        <StepCard number={5} title="Pie Charts">
+          See spending breakdowns by <strong>category</strong> and <strong>subcategory</strong>. Hover over slices for details and percentages.
+        </StepCard>
+        <Screenshot src="/screenshots/summary%20tab%20st%20image.png" alt="Summary Charts" caption="Summary charts - bar charts and KPIs"/>
+
+        {/* ── Statistics ── */}
+        <SectionDivider title="📈 Statistics Tab"/>
+        <p style={{color:'#4a4d6b',lineHeight:1.7,marginBottom:16}}>Deep-dive analytics with powerful filters. Analyze your spending patterns over any time period.</p>
+        <StepCard number={1} title="Set Your Filters">
+          Use the filter panel to select <strong>years</strong>, <strong>months</strong>, <strong>type</strong> (Expense/Income), <strong>categories</strong>, and <strong>subcategories</strong>. Use quick-select buttons: Last 3 Months, Last 6 Months, or All Time.
+        </StepCard>
+        <StepCard number={2} title="View Statistics">
+          Click <strong>"📊 Calculate Statistics"</strong> to generate results. You'll see Mean, Median, Min, Max monthly totals plus a full breakdown.
+        </StepCard>
+        <StepCard number={3} title="Category Breakdown">
+          View per-category analysis with <strong>pie charts</strong> and detailed tables showing how each category contributes to your total.
+        </StepCard>
+
+        {/* ── Data ── */}
+        <SectionDivider title="📄 Data Tab"/>
+        <p style={{color:'#4a4d6b',lineHeight:1.7,marginBottom:16}}>View and edit all your saved historical transactions. This is your permanent record, with powerful filtering.</p>
+        <StepCard number={1} title="Browse Your Data">
+          All saved transactions appear here sorted by date. Use the column filters (Tag, Name, Category, Subcategory) to narrow down what you see.
+        </StepCard>
+        <StepCard number={2} title="Edit Transactions">
+          Click any cell to edit. Changes are tracked - you'll see an <strong>unsaved changes warning</strong> if you try to leave without saving.
+        </StepCard>
+        <StepCard number={3} title="Save Changes">
+          Click <strong>"💾 Save Changes"</strong> to persist your edits. A confirmation dialog shows exactly what changed before you confirm.
+        </StepCard>
+        <StepCard number={4} title="Cross-Tab Navigation">
+          When you double-click a cell in the Summary comparison table, you'll arrive here pre-filtered to that category/month.
+        </StepCard>
+
+        {/* ── Categories ── */}
+        <SectionDivider title="📚 Categories Tab"/>
+        <p style={{color:'#4a4d6b',lineHeight:1.7,marginBottom:16}}>Organize your transactions into meaningful categories and subcategories for better tracking and analysis.</p>
+        <StepCard number={1} title="Add a Category">
+          Type a category name (e.g., "Food", "Transport", "Entertainment") in the input and click <strong>"Add"</strong>.
+        </StepCard>
+        <StepCard number={2} title="Add Subcategories">
+          Within each category card, add subcategories (e.g., under "Food": "Groceries", "Restaurants", "Coffee"). This helps with detailed tracking.
+        </StepCard>
+        <StepCard number={3} title="Search & Manage">
+          Use the search bar to find categories or subcategories quickly. Delete any category or subcategory you no longer need.
+        </StepCard>
+        <Screenshot src="/screenshots/catagories%20tab.png" alt="Categories Tab" caption="Category management with subcategories"/>
+
+      </div>
+    </div>
+  );
+}
 
 /* ------------------------------- App ------------------------------- */
 function App(){
@@ -3245,6 +3212,7 @@ function App(){
   const [past,setPast]=React.useState([]);
   const [stage,setStage]=React.useState([]);
   const [settings,setSettings]=React.useState({dateFormat:'YYYY-MM-DD', currency:'ILS'});
+  const [dataFilter, setDataFilter]=React.useState(null); // {col, val, col2?, val2?}
 
   React.useEffect(()=>{ API.logout().catch(()=>{}); },[]);
 
@@ -3256,36 +3224,121 @@ function App(){
       window.settings = s; // Make available globally for currency toggling
     }).catch(()=>{}));
   }
-  function doLogin(name){ API.login(name).then(()=>{ setUser(name); setTab('transactions'); return reload(); }).catch(err=>alert('Login failed: '+err.message)); }
+  const [dataDirty, setDataDirty] = React.useState(false);
+  const [pendingTab, setPendingTab] = React.useState(null);
+  const [pendingFilter, setPendingFilter] = React.useState(null);
+  const [showUnsavedModal, setShowUnsavedModal] = React.useState(false);
+  const [showChangePwModal, setShowChangePwModal] = React.useState(false);
+  const dataChangesRef = React.useRef(false);
 
-  if(!user) return <LoginView onLogin={doLogin}/>;
+  function doLogin(name, password){ 
+    API.login(name, password).then(r=>{ 
+      if(!r.ok){ 
+        if(window._loginSetErr) window._loginSetErr(r.error || 'Login failed');
+        return; 
+      }
+      setUser(name); setTab('transactions'); return reload(); 
+    }).catch(err=>{
+      if(window._loginSetErr) window._loginSetErr('Login failed: '+err.message);
+    }); 
+  }
+  function doSignup(name, password, email){ 
+    API.signup(name, password, email).then(r=>{ 
+      if(!r.ok){ 
+        if(window._loginSetErr) window._loginSetErr(r.error || 'Sign up failed');
+        return; 
+      }
+      setUser(name); setTab('transactions'); return reload(); 
+    }).catch(err=>{
+      if(window._loginSetErr) window._loginSetErr('Sign up failed: '+err.message);
+    }); 
+  }
 
-  function tabBtn(id,label,icon){ return <button className={'tab'+(tab===id?' active':'')} onClick={()=>{ if(tab==='transactions'){ API.saveStage(stage).catch(()=>{}); } setTab(id); }}>{icon} {label}</button>; }
-  function onSavedTx(){ reload().then(()=> setTab('data')); }
+  if(!user) return <LoginView onLogin={doLogin} onSignup={doSignup}/>;
+  function handleDataDirty(dirty) { dataChangesRef.current = dirty; setDataDirty(dirty); }
+
+  function trySetTab(id, filter) {
+    if (tab === 'data' && dataChangesRef.current) {
+      setPendingTab(id);
+      setPendingFilter(filter || null);
+      setShowUnsavedModal(true);
+      return;
+    }
+    if (tab === 'transactions') { API.saveStage(stage).catch(()=>{}); }
+    setDataFilter(filter || null);
+    setTab(id);
+  }
+  function confirmDiscardChanges() {
+    setShowUnsavedModal(false);
+    dataChangesRef.current = false;
+    setDataDirty(false);
+    if (pendingTab) {
+      setDataFilter(pendingFilter);
+      setTab(pendingTab);
+      setPendingTab(null);
+      setPendingFilter(null);
+    }
+  }
+  function cancelTabSwitch() {
+    setShowUnsavedModal(false);
+    setPendingTab(null);
+    setPendingFilter(null);
+  }
+
+  function tabBtn(id,label,icon){ return <button className={'tab'+(tab===id?' active':'')} onClick={()=>trySetTab(id)}>{icon} {label}</button>; }
+  function onSavedTx(){ reload().then(()=> trySetTab('summary')); }
+  function navigateToData(filter){ trySetTab('data', filter); }
 
   return (
     <div className="wrap">
-      <h1 className="title">MoneyTron — Multi-User Money Tracker</h1>
+      <h1 className="title">MoneyTron - Multi-User Money Tracker</h1>
+      {/* Unsaved changes modal */}
+      {showUnsavedModal && (
+        <div className="modal-overlay" onClick={cancelTabSwitch}>
+          <div className="modal-card" onClick={e=>e.stopPropagation()}>
+            <h3>⚠️ Unsaved Changes</h3>
+            <p style={{margin:'8px 0 16px',fontSize:14,color:'#667085'}}>You have unsaved changes in the Data tab. Do you want to discard them?</p>
+            <div className="modal-actions">
+              <button className="btn" onClick={cancelTabSwitch}>Cancel (Stay)</button>
+              <button className="btn danger" onClick={confirmDiscardChanges}>Discard & Switch</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="frame">
-        <div className="topbar"><div className="pill welcome">Welcome, {user}!</div><button className="ghost btn" onClick={()=>{ API.logout().then(()=>setUser(null)); }}>Switch User</button></div>
+        <div className="topbar">
+          <div className="pill welcome">Welcome, {user}!</div>
+          <button className="ghost btn" onClick={()=>setShowChangePwModal(true)}>🔒 Change Password</button>
+          <button className="ghost btn" onClick={()=>{ API.logout().then(()=>setUser(null)); }}>Switch User</button>
+        </div>
+        {showChangePwModal && (
+          <div className="modal-overlay" onClick={()=>setShowChangePwModal(false)}>
+            <div className="modal-card" onClick={e=>e.stopPropagation()}>
+              <h3>🔒 Change Password</h3>
+              <ChangePasswordForm onDone={()=>setShowChangePwModal(false)}/>
+            </div>
+          </div>
+        )}
         <div className="tabs">
           {tabBtn('transactions','Transactions','💰')}
           {tabBtn('summary','Summary','📊')}
+          {tabBtn('statistics','Statistics','📈')}
           {tabBtn('data','Data','📄')}
           {tabBtn('categories','Categories','📚')}
-          {tabBtn('statistics','Statistics','📈')}
+          {tabBtn('tutorial','Tutorial','📖')}
         </div>
         {tab==='transactions' && <TransactionsTab rows={stage} setRows={setStage} categories={categories} onSaved={onSavedTx}/>}
-        {tab==='data' && <DataTab past={past} categories={categories} onSaved={reload}/>} 
-        {tab==='summary' && <SummaryTab past={past} active={tab==='summary'}/>} 
+        {tab==='data' && <DataTab key={dataFilter ? JSON.stringify(dataFilter) : 'default'} past={past} categories={categories} onSaved={(rows)=>{ dataChangesRef.current=false; setDataDirty(false); reload(); }} initialFilter={dataFilter} onDirtyChange={handleDataDirty}/>} 
+        {tab==='summary' && <SummaryTab past={past} active={tab==='summary'} onNavigateToData={navigateToData}/>} 
         {tab==='categories' && <CategoriesTab user={user} categories={categories} onSaved={setCategories}/>} 
-        {tab==='statistics' && <StatisticsTab past={past} categories={categories}/>} 
+        {tab==='statistics' && <StatisticsTab past={past} categories={categories}/>}
+        {tab==='tutorial' && <TutorialTab/>}
       </div>
     </div>
   );
 }
 
-ReactDOM.render(<App/>, document.getElementById('root'));
+ReactDOM.render(<React.Fragment><App/><FeedbackButton/></React.Fragment>, document.getElementById('root'));
   </script>
 </body>
 </html>

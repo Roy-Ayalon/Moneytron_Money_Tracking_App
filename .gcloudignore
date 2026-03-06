@@ -1,0 +1,43 @@
+# This file tells gcloud which files to skip when uploading to Cloud Build.
+# Without it, ALL files (including temp files) get uploaded, making builds very slow.
+
+# Include the .dockerignore rules
+#!include:.dockerignore
+
+# Temp claude files (55+ of them!)
+tmpclaude-*
+
+# Dev/build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.spec
+nul
+*.log
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Docs & scripts not needed in container
+README.md
+UPGRADE_SUMMARY.md
+DEPLOY_GUIDE.md
+deploy.ps1
+start.bat
+start.command
+
+# Screenshots and videos
+screenshots/
+videos/
