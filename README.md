@@ -7,17 +7,33 @@ Upload your bank/credit files, categorize transactions, and view monthly summari
 
 ## Screenshots
 
-**Login Page**
-![Login Page](screenshots/login%20page.png)
-
 **Transactions Tab**
-![Transactions Tab](screenshots/transactions%20tab.png)
-
-**Categories Tab**
-![Categories Tab](screenshots/catagories%20tab.png)
+![Transactions Tab](screenshots/transactions%20page.png)
 
 **Summary Tab**
-![Summary Tab](screenshots/summary%20tab%20st%20image.png)
+![Summary Tab](screenshots/summary%20page.png)
+
+**Statistics Tab**
+![Statistics Tab](screenshots/statistic%20page.png)
+
+**Data Tab**
+![Data Tab](screenshots/data%20page.png)
+
+**Categories Tab**
+![Categories Tab](screenshots/catagory%20page.png)
+
+---
+
+## Demo Videos
+
+| Feature | Video |
+|---|---|
+| Sign Up | [Sign up.mov](videos/Sign%20up.mov) |
+| Change Password | [change password.mov](videos/change%20password.mov) |
+| Upload Transactions | [upload transactions.mov](videos/upload%20transactions.mov) |
+| Summary Drill-Down | [summary double click.mov](videos/summary%20double%20click.mov) |
+| Statistics Demo | [statistics demo.mov](videos/statistics%20demo.mov) |
+| Add Category | [Add catagory.mov](videos/Add%20catagory.mov) |
 
 ---
 
@@ -81,7 +97,8 @@ MoneyTron/
 +-- screenshots/               # App screenshots
 +-- videos/                    # Demo videos
 +-- Dockerfile                 # Cloud deployment container
-+-- deploy.ps1                 # GCP Cloud Run deployment script
++-- deploy.ps1                 # GCP Cloud Run deployment script (Windows)
++-- deploy.sh                  # GCP Cloud Run deployment script (macOS/Linux)
 +-- requirements.txt           # Python dependencies
 +-- start.command              # macOS launcher
 +-- start.bat                  # Windows launcher
@@ -123,14 +140,24 @@ MoneyTron/
 
 ## Cloud Deployment (GCP)
 
-MoneyTron includes a Dockerfile and PowerShell deployment script for Google Cloud Run with persistent user data via GCS bucket mount.
+MoneyTron includes a Dockerfile and deployment scripts for Google Cloud Run with persistent user data via GCS bucket mount.
 
+**Windows (PowerShell):**
 ```powershell
 # First time (full setup)
 .\deploy.ps1
 
 # Redeploy after code changes
 .\deploy.ps1 -SkipSetup
+```
+
+**macOS / Linux (Bash):**
+```bash
+# First time (full setup)
+./deploy.sh
+
+# Redeploy after code changes
+./deploy.sh -SkipSetup
 ```
 
 See [DEPLOY_GUIDE.md](DEPLOY_GUIDE.md) for detailed instructions.

@@ -5,6 +5,8 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>MoneyTron - Multi-User Money Tracker</title>
+  <link rel="icon" type="image/png" href="/client/favicon.png">
+  <link rel="apple-touch-icon" href="/client/favicon.png">
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2992,6 +2994,20 @@ function TutorialTab(){
     );
   }
 
+  function VideoClip({src, caption}) {
+    return (
+      <div style={{textAlign:'center',margin:'18px 0'}}>
+        <video
+          src={src}
+          controls
+          playsInline
+          style={{maxWidth:'100%',borderRadius:14,boxShadow:'0 8px 28px rgba(30,20,70,.18)',border:'2px solid #e0ddf5',background:'#000'}}
+        />
+        {caption && <div style={{marginTop:8,fontSize:13,color:'#667085',fontStyle:'italic'}}>🎬 {caption}</div>}
+      </div>
+    );
+  }
+
   function StepCard({number, title, children}) {
     return (
       <div style={{display:'flex',gap:16,margin:'18px 0',padding:16,background:'#faf9ff',borderRadius:14,border:'1px solid #e0ddf5'}}>
@@ -3117,7 +3133,8 @@ function TutorialTab(){
         <StepCard number={4} title="Change Password">
           Click the <strong>"🔒 Change Password"</strong> button in the top bar to update your password at any time.
         </StepCard>
-        <Screenshot src="/screenshots/login%20page.png" alt="Login Page" caption="The login and sign-up page"/>
+        <VideoClip src="/videos/Sign%20up.mov" caption="How to sign up for MoneyTron"/>
+        <VideoClip src="/videos/change%20password.mov" caption="How to change your password"/>
 
         {/* ── Transactions ── */}
         <SectionDivider title="💰 Transactions Tab"/>
@@ -3134,7 +3151,8 @@ function TutorialTab(){
         <StepCard number={4} title="Save to Past Data">
           When you're happy with your transactions, click <strong>"💾 Save All"</strong> to permanently store them. They'll then appear in Summary and Statistics.
         </StepCard>
-        <Screenshot src="/screenshots/transactions%20tab.png" alt="Transactions Tab" caption="The transactions staging area with upload and editing"/>
+        <Screenshot src="/screenshots/transactions%20page.png" alt="Transactions Tab" caption="The transactions staging area with upload and editing"/>
+        <VideoClip src="/videos/upload%20transactions.mov" caption="How to upload and categorize transactions"/>
 
         {/* ── Summary ── */}
         <SectionDivider title="📊 Summary Tab"/>
@@ -3154,7 +3172,8 @@ function TutorialTab(){
         <StepCard number={5} title="Pie Charts">
           See spending breakdowns by <strong>category</strong> and <strong>subcategory</strong>. Hover over slices for details and percentages.
         </StepCard>
-        <Screenshot src="/screenshots/summary%20tab%20st%20image.png" alt="Summary Charts" caption="Summary charts - bar charts and KPIs"/>
+        <Screenshot src="/screenshots/summary%20page.png" alt="Summary Charts" caption="Summary charts - bar charts and KPIs"/>
+        <VideoClip src="/videos/summary%20double%20click.mov" caption="Double-click drill-down from Summary to Data"/>
 
         {/* ── Statistics ── */}
         <SectionDivider title="📈 Statistics Tab"/>
@@ -3168,6 +3187,8 @@ function TutorialTab(){
         <StepCard number={3} title="Category Breakdown">
           View per-category analysis with <strong>pie charts</strong> and detailed tables showing how each category contributes to your total.
         </StepCard>
+        <Screenshot src="/screenshots/statistic%20page.png" alt="Statistics Tab" caption="Statistics tab with filters and analytics"/>
+        <VideoClip src="/videos/statistics%20demo.mov" caption="Statistics tab demo - filtering and analyzing data"/>
 
         {/* ── Data ── */}
         <SectionDivider title="📄 Data Tab"/>
@@ -3184,6 +3205,7 @@ function TutorialTab(){
         <StepCard number={4} title="Cross-Tab Navigation">
           When you double-click a cell in the Summary comparison table, you'll arrive here pre-filtered to that category/month.
         </StepCard>
+        <Screenshot src="/screenshots/data%20page.png" alt="Data Tab" caption="The data tab showing all saved transactions"/>
 
         {/* ── Categories ── */}
         <SectionDivider title="📚 Categories Tab"/>
@@ -3197,7 +3219,8 @@ function TutorialTab(){
         <StepCard number={3} title="Search & Manage">
           Use the search bar to find categories or subcategories quickly. Delete any category or subcategory you no longer need.
         </StepCard>
-        <Screenshot src="/screenshots/catagories%20tab.png" alt="Categories Tab" caption="Category management with subcategories"/>
+        <Screenshot src="/screenshots/catagory%20page.png" alt="Categories Tab" caption="Category management with subcategories"/>
+        <VideoClip src="/videos/Add%20catagory.mov" caption="How to add categories and subcategories"/>
 
       </div>
     </div>

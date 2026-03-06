@@ -216,6 +216,11 @@ def index():
 def client_files(filename: str):
     return send_from_directory(CLIENT_DIR, filename)
 
+@app.route("/favicon.ico")
+@app.route("/favicon.png")
+def favicon():
+    return send_from_directory(CLIENT_DIR, "favicon.png", mimetype="image/png")
+
 @app.route("/screenshots/<path:filename>")
 def screenshot_files(filename: str):
     screenshots_dir = (ROOT_DIR / "screenshots").resolve() if not getattr(sys, "frozen", False) else (APP_DIR / "screenshots").resolve()

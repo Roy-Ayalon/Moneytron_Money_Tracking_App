@@ -38,6 +38,5 @@ deploy.ps1
 start.bat
 start.command
 
-# Screenshots and videos
-screenshots/
-videos/
+# Deploy scripts (not needed in container)
+deploy.sh

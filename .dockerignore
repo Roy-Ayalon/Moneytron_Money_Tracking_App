@@ -30,6 +30,5 @@ UPGRADE_SUMMARY.md
 DEPLOY_GUIDE.md
 start.bat
 start.command
-videos/
-screenshots/
 deploy.ps1
+deploy.sh

@@ -15,6 +15,10 @@ RUN pip install --no-cache-dir -r requirements.txt gunicorn
 COPY server/ ./server/
 COPY client/ ./client/
 
+# Copy screenshots & videos so the tutorial tab can render them
+COPY screenshots/ ./screenshots/
+COPY videos/ ./videos/
+
 # Copy existing user data (seed / initial data)
 # On Cloud Run with GCS volume mount, /app/users will be overridden by the bucket
 COPY users/ ./users/
