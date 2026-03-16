@@ -215,6 +215,99 @@ def parse_dmy_to_iso(dmy_str):
 
 # ── Amount / number parsing ────────────────────────────────────────────────
 
+def _normalize_numeric_string(v):
+    """
+    Normalize user/file numeric input into a canonical float-friendly string.
+    Supports both US (1,234.56) and EU (1.234,56) styles with sign handling.
+    Returns (normalized_string, is_negative) or (None, False) if empty.
+    """
+    if v is None:
+        return None, False
+
+    s = clean_html(v)
+    if s is None:
+        return None, False
+    s = str(s).strip()
+    if not s:
+        return None, False
+
+    neg = False
+
+    # Parentheses denote negative values
+    if re.match(r"^\(.*\)$", s):
+        neg = True
+        s = s[1:-1]
+
+    # Leading sign
+    if re.match(r"^[+\-\u2212\u2013]\s*", s):
+        if re.match(r"^[\-\u2212\u2013]", s):
+            neg = True
+        s = re.sub(r"^[+\-\u2212\u2013]\s*", "", s)
+
+    # Trailing sign
+    if re.search(r"[-\u2212\u2013\u002D]\s*$", s):
+        neg = True
+        s = re.sub(r"[-\u2212\u2013\u002D]\s*$", "", s)
+
+    # Strip currency symbols and directionality / spacing marks
+    s = s.replace("\u00a0", "")
+    s = re.sub(r"[₪$€£]", "", s)
+    s = re.sub(r"[\u200f\u200e\u202a\u202b\u202c\u2066\u2067\u2068\u2069]", "", s)
+    s = re.sub(r"\s+", "", s)
+
+    # Keep only separators and digits before deciding locale pattern
+    s = re.sub(r"[^0-9,\.\-]", "", s)
+    if not s:
+        return None, neg
+
+    last_dot = s.rfind(".")
+    last_comma = s.rfind(",")
+
+    if last_dot >= 0 and last_comma >= 0:
+        # Decimal separator is whichever appears last.
+        if last_dot > last_comma:
+            # 1,234.56 -> remove commas
+            s = s.replace(",", "")
+        else:
+            # 1.234,56 -> remove dots, comma->dot
+            s = s.replace(".", "")
+            s = s.replace(",", ".")
+    elif last_comma >= 0:
+        parts = s.split(",")
+        tail = parts[-1] if parts else ""
+        if len(parts) > 2:
+            # Repeated comma groups are usually thousands unless tail suggests decimal
+            if all(len(p) == 3 for p in parts[1:]):
+                s = "".join(parts)
+            else:
+                s = "".join(parts[:-1]) + "." + tail
+        else:
+            if len(tail) <= 2:
+                # Decimal comma
+                s = s.replace(",", ".")
+            elif len(tail) == 3:
+                # 12,345 thousands grouping
+                s = "".join(parts)
+            else:
+                s = "".join(parts)
+    elif last_dot >= 0:
+        parts = s.split(".")
+        tail = parts[-1] if parts else ""
+        if len(parts) > 2:
+            if all(len(p) == 3 for p in parts[1:]):
+                s = "".join(parts)
+            else:
+                s = "".join(parts[:-1]) + "." + tail
+        elif len(tail) == 3 and len(parts[0]) >= 1:
+            # 12.345 thousands grouping (no comma)
+            s = "".join(parts)
+
+    # Final cleanup
+    s = re.sub(r"[^0-9.\-]", "", s)
+    if not s:
+        return None, neg
+    return s, neg
+
 def parse_amount(v):
     """
     Parse a monetary string to a float.
@@ -224,28 +317,13 @@ def parse_amount(v):
     if v is None or v == "":
         return 0.0
     if isinstance(v, (int, float)):
-        return float(v)
-    s = str(v).strip()
-    neg = False
-    # Parentheses = negative
-    if re.match(r"^\(.*\)$", s):
-        neg = True
-        s = s[1:-1]
-    # Trailing minus/dash
-    if re.search(r"[-\u2212\u2013\u002D]\s*$", s):
-        neg = True
-        s = re.sub(r"[-\u2212\u2013\u002D]\s*$", "", s)
-    # Strip currency symbols and RTL marks
-    s = re.sub(r"[₪$€£]", "", s)
-    s = re.sub(r"[\u200f\u200e]", "", s)
-    s = re.sub(r"\s+", "", s)
-    # Thousand/decimal separators
-    if "." in s and "," in s:
-        s = s.replace(".", "").replace(",", ".")
-    else:
-        s = s.replace(",", "")
-    # Keep only digits, dot, minus
-    s = re.sub(r"[^0-9.\-]", "", s)
+        n = float(v)
+        return n if math.isfinite(n) else 0.0
+
+    s, neg = _normalize_numeric_string(v)
+    if not s:
+        return 0.0
+
     try:
         n = float(s)
     except (ValueError, TypeError):
@@ -267,25 +345,11 @@ def numify(v):
     s = str(v).strip()
     if not s:
         return None
-    s = clean_html(s)
+
+    s, neg = _normalize_numeric_string(s)
     if not s:
         return None
-    # Normalize NBSP and RTL marks
-    s = s.replace("\u00a0", "").replace("\u200f", "").replace("\u200e", "")
-    neg = False
-    if re.match(r"^\(.*\)$", s):
-        neg = True
-        s = s[1:-1]
-    if re.search(r"[-\u2212\u2013\u002D]\s*$", s):
-        neg = True
-        s = re.sub(r"[-\u2212\u2013\u002D]\s*$", "", s)
-    s = re.sub(r"[₪$€£]", "", s)
-    s = re.sub(r"\s+", "", s)
-    if "." in s and "," in s:
-        s = s.replace(".", "").replace(",", ".")
-    else:
-        s = s.replace(",", "")
-    s = re.sub(r"[^0-9.\-]", "", s)
+
     try:
         n = float(s)
     except (ValueError, TypeError):

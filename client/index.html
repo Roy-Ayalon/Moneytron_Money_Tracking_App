@@ -486,10 +486,55 @@ function parseAmount(v) {
   var s = String(v).trim();
   var neg = false;
   if (/^\(.*\)$/.test(s)) { neg = true; s = s.slice(1, -1); }
+  if (/^[+\-\u2212\u2013]/.test(s)) {
+    if (/^[\-\u2212\u2013]/.test(s)) neg = true;
+    s = s.replace(/^[+\-\u2212\u2013]\s*/, '');
+  }
   if (/[-\u2212\u2013]\s*$/.test(s)) { neg = true; s = s.replace(/[-\u2212\u2013]\s*$/, ''); }
-  s = s.replace(/[₪$€£\u200f\u200e\s]/g, '');
-  if (s.indexOf('.') >= 0 && s.indexOf(',') >= 0) { s = s.replace(/\./g, '').replace(',', '.'); }
-  else { s = s.replace(/,/g, ''); }
+  s = s.replace(/[₪$€£\u200f\u200e\u00a0\s]/g, '');
+  s = s.replace(/[^0-9,\.\-]/g, '');
+
+  var lastDot = s.lastIndexOf('.');
+  var lastComma = s.lastIndexOf(',');
+  if (lastDot !== -1 && lastComma !== -1) {
+    if (lastDot > lastComma) {
+      s = s.replace(/,/g, '');
+    } else {
+      s = s.replace(/\./g, '');
+      s = s.replace(/,/g, '.');
+    }
+  } else if (lastComma !== -1) {
+    var commaParts = s.split(',');
+    var commaTail = commaParts[commaParts.length - 1] || '';
+    if (commaParts.length > 2) {
+      var allThousandsComma = true;
+      for (var ci = 1; ci < commaParts.length; ci++) {
+        if ((commaParts[ci] || '').length !== 3) { allThousandsComma = false; break; }
+      }
+      if (allThousandsComma) s = commaParts.join('');
+      else { s = commaParts.slice(0, -1).join('') + '.' + commaTail; }
+    } else if (commaTail.length <= 2) {
+      s = s.replace(',', '.');
+    } else if (commaTail.length === 3) {
+      s = commaParts.join('');
+    } else {
+      s = commaParts.join('');
+    }
+  } else if (lastDot !== -1) {
+    var dotParts = s.split('.');
+    var dotTail = dotParts[dotParts.length - 1] || '';
+    if (dotParts.length > 2) {
+      var allThousandsDot = true;
+      for (var di = 1; di < dotParts.length; di++) {
+        if ((dotParts[di] || '').length !== 3) { allThousandsDot = false; break; }
+      }
+      if (allThousandsDot) s = dotParts.join('');
+      else { s = dotParts.slice(0, -1).join('') + '.' + dotTail; }
+    } else if (dotTail.length === 3 && (dotParts[0] || '').length >= 1) {
+      s = dotParts.join('');
+    }
+  }
+
   s = s.replace(/[^0-9.\-]/g, '');
   var n = parseFloat(s);
   if (!isFinite(n)) return 0;
@@ -683,14 +728,10 @@ function TransactionsTab({rows,setRows,categories,onSaved}){
       if (!result.ok) { alert(result.error || 'Upload failed'); return; }
 
       const autoed = result.transactions || [];
-      // Merge with existing staged rows (to support multiple uploads for same month)
-      var existingIds = new Set(rows.map(function(r){return r.id;}));
-      var newRows = autoed.filter(function(r){return !existingIds.has(r.id);});
-      var merged = rows.concat(newRows);
-      var final = merged.length > rows.length ? merged : autoed;
-      setRows(final);
+      // Replace temporary upload batch so each upload shows only the latest unsaved rows
+      setRows(autoed);
       setMsg('\u2705 Imported ' + autoed.length + ' rows from "' + pendingFile.name + '" | Tag: ' + tag + '/' + String(year).slice(-2));
-      await API.saveStage(final);
+      await API.saveStage(autoed);
     }catch(err){ alert('Parse failed: '+err.message); }
     finally{ setUploading(false); setShowUploadModal(false); setPendingFile(null); }
   }
@@ -700,7 +741,10 @@ function TransactionsTab({rows,setRows,categories,onSaved}){
     const needSubRows = rows.filter(r=>!r.subcategory);
     if(needCatRows.length){ alert('Please set Category for all rows. ' + needCatRows.length + ' row(s) missing.'); return; }
     if(needSubRows.length){ alert('Please set Sub-category for all rows. ' + needSubRows.length + ' row(s) missing.'); return; }
-    API.saveTransactions(rows).then(()=>{ setRows([]); setMsg(''); onSaved(); }).catch(err=>alert('Save failed: '+err.message));
+    API.saveTransactions(rows)
+      .then(()=>API.saveStage([]).catch(()=>{}))
+      .then(()=>{ setRows([]); setMsg(''); onSaved(); })
+      .catch(err=>alert('Save failed: '+err.message));
   }
   function patch(id,patch){ const i=rows.findIndex(r=>r.id===id); if(i<0) return; const next=rows.slice(); next[i]=Object.assign({},next[i],patch); setRows(next); API.saveStage(next).catch(()=>{}); }
   function delRow(id){ const next=rows.filter(r=>r.id!==id); setRows(next); API.saveStage(next).catch(()=>{}); }
@@ -974,6 +1018,7 @@ function TransactionsTab({rows,setRows,categories,onSaved}){
                 </tr>
               );
             }) : <tr><td colSpan="11" style={{textAlign:'center',color:'#6b7280'}}>No Transactions Yet</td></tr>}
+            {view.length > 0 && <tr style={{borderTop:'3px solid #6b46c1',backgroundColor:'#f5f3ff'}}><td></td><td></td><td></td><td style={{fontWeight:800,textAlign:'center',color:'#2c2761'}}>{view.length} rows</td><td></td><td style={{fontWeight:800,textAlign:'center',color:'#2c2761'}}>₪{fmt2(view.reduce((a,r)=>a+Number(r.debit||0),0))}</td><td></td><td></td><td></td><td></td><td></td></tr>}
           </tbody>
         </table>
       </div>
@@ -1179,7 +1224,7 @@ function DataTab({past,categories,onSaved,initialFilter,onDirtyChange}){
           }
           case 'name': return String(row.name == null ? '' : row.name).toLowerCase().includes(v);
           case 'category': return String(row.category == null ? '' : row.category).toLowerCase().includes(v);
-          case 'subcategory': return String(row.subcategory == null ? '' : row.subcategory).toLowerCase().includes(v);
+          case 'subcategory': return String(row.subcategory == null ? '' : row.subcategory).toLowerCase().trim() === v;
           default: return true;
         }
       }
