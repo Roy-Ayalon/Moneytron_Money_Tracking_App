@@ -98,7 +98,7 @@
     tbody tr td:last-child{ border-radius:0 10px 10px 0; }
     .row-vi td{ background:var(--dangerRow)!important; color:#7f1d1d; }
 
-    input[type="text"], input[type="number"], select{ width:100%; padding:8px 10px; border-radius:10px; border:1px solid #e5e7eb; background:#fff; font-family:inherit; font-size:14px; text-align:center; }
+    input[type="text"], input[type="email"], input[type="number"], select{ width:100%; padding:8px 10px; border-radius:10px; border:1px solid #e5e7eb; background:#fff; font-family:inherit; font-size:14px; text-align:center; }
     .locked{ background:#f9fafb; }
     .type-pill{ border:none; border-radius:999px; padding:8px 14px; font-weight:800; cursor:pointer; box-shadow:0 3px 10px rgba(0,0,0,.08); }
     .type-exp{ background:#fee2e2; color:#991b1b; }
@@ -184,12 +184,14 @@
     .login-card h2{ margin:0 0 6px; font-size:26px; font-weight:800; color:#2c2761; }
     .login-card .login-sub{ color:#667085; font-size:14px; margin-bottom:24px; }
     .login-card input[type='text'],
+    .login-card input[type='email'],
     .login-card input[type='password']{
       width:100%; padding:14px 18px; border-radius:14px; border:1.5px solid #e0dff5;
       font-size:16px; text-align:center; font-family:inherit;
       transition:border-color .15s, box-shadow .15s;
     }
     .login-card input[type='text']:focus,
+    .login-card input[type='email']:focus,
     .login-card input[type='password']:focus{ outline:none; border-color:#7c3aed; box-shadow:0 0 0 4px rgba(124,58,237,.15); }
     .login-card .pill{ margin-top:18px; padding:14px 40px; font-size:16px; width:100%; border-radius:14px; }
 
@@ -254,11 +256,11 @@
       transition:transform .15s, box-shadow .15s;
     }
     .cat-card:hover{ transform:translateY(-2px); box-shadow:0 10px 28px rgba(16,24,40,.1); }
-    select, input[type='text'], input[type='number']{
+    select, input[type='text'], input[type='email'], input[type='number']{
       border-radius:12px; border:1.5px solid #e0dff5;
       transition:border-color .15s, box-shadow .15s;
     }
-    select:focus, input[type='text']:focus, input[type='number']:focus{
+    select:focus, input[type='text']:focus, input[type='email']:focus, input[type='number']:focus{
       outline:none; border-color:#7c3aed;
       box-shadow:0 0 0 3px rgba(124,58,237,.12);
     }
