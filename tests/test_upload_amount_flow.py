@@ -23,7 +23,6 @@ class UploadAmountFlowTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         app_module.USERS_DIR = Path(self.tmp.name).resolve()
         app_module.USERS_DIR.mkdir(parents=True, exist_ok=True)
-        app_module._CURRENT_USER["name"] = None
         self.client = app_module.app.test_client()
 
         res = self.client.post(
@@ -35,9 +34,10 @@ class UploadAmountFlowTests(unittest.TestCase):
             },
         )
         self.assertEqual(res.status_code, 200)
+        signup_payload = res.get_json() or {}
+        self.csrf = signup_payload.get("csrfToken", "")
 
     def tearDown(self):
-        app_module._CURRENT_USER["name"] = None
         self.tmp.cleanup()
 
     def test_upload_parses_thousands_and_preserves_ui_values(self):
@@ -57,6 +57,7 @@ class UploadAmountFlowTests(unittest.TestCase):
                 "tag": "3",
                 "year": "2026",
             },
+            headers={"X-CSRF-Token": self.csrf},
             content_type="multipart/form-data",
         )
 
@@ -84,6 +85,28 @@ class UploadAmountFlowTests(unittest.TestCase):
 
         self.assertAlmostEqual(by_name["Store E"]["amount"], 1234.56)
         self.assertAlmostEqual(by_name["Store E"]["debit"], 1234.56)
+
+    def test_upload_accepts_multi_file_batch(self):
+        csv_a = "Date,Description,Amount,Debit\n2026-03-01,Store A,10,10\n"
+        csv_b = "Date,Description,Amount,Debit\n2026-03-02,Store B,20,20\n"
+        res = self.client.post(
+            "/api/upload",
+            data={
+                "files": [
+                    (io.BytesIO(csv_a.encode("utf-8")), "a.csv"),
+                    (io.BytesIO(csv_b.encode("utf-8")), "b.csv"),
+                ],
+                "tag": "3",
+                "year": "2026",
+            },
+            headers={"X-CSRF-Token": self.csrf},
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(res.status_code, 200)
+        payload = res.get_json() or {}
+        self.assertTrue(payload.get("ok"))
+        self.assertEqual(payload.get("count"), 2)
+        self.assertEqual(len(payload.get("files", [])), 2)
 
 
 if __name__ == "__main__":

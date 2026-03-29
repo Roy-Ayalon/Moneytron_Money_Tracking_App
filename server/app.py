@@ -9,9 +9,14 @@ import os
 import sys
 import json
 import hashlib
+import hmac
+import secrets
+import shutil
 import tempfile
+import re
+from collections import defaultdict, deque
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional, Tuple
 from threading import RLock
 import smtplib
 from email.mime.text import MIMEText
@@ -21,6 +26,8 @@ import logging
 import time
 
 from flask import Flask, request, jsonify, send_from_directory, abort, make_response
+from werkzeug.exceptions import RequestEntityTooLarge
+import bcrypt
 
 # ── Module imports ───────────────────────────────────────────────────────────
 # Add server/ dir to path so modules can import each other
@@ -28,7 +35,7 @@ SERVER_DIR_PATH = Path(__file__).resolve().parent
 if str(SERVER_DIR_PATH) not in sys.path:
     sys.path.insert(0, str(SERVER_DIR_PATH))
 
-from ingestion import extract_transactions
+from ingestion import extract_transactions, extract_transactions_with_mapping
 from categorization import auto_categorize_rows
 from analytics import (
     compute_summary,
@@ -64,6 +71,10 @@ USERS_DIR.mkdir(parents=True, exist_ok=True)
 # App init
 # =============================================================================
 app = Flask(__name__, static_folder=None)
+MAX_UPLOAD_MB = int(os.environ.get("MONEYTRON_MAX_UPLOAD_MB", "12"))
+MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
+
 log_path = "moneytron.log"
 logging.basicConfig(
     level=logging.DEBUG,
@@ -78,21 +89,74 @@ app.config["JSON_AS_ASCII"] = False
 app.config["JSON_SORT_KEYS"] = False
 app.url_map.strict_slashes = False
 
+DEFAULT_ALLOWED_ORIGINS = {
+    "http://127.0.0.1:5003",
+    "http://localhost:5003",
+}
+_allowed_origins_env = os.environ.get("MONEYTRON_ALLOWED_ORIGINS", "").strip()
+ALLOWED_ORIGINS = (
+    {x.strip() for x in _allowed_origins_env.split(",") if x.strip()}
+    if _allowed_origins_env
+    else DEFAULT_ALLOWED_ORIGINS
+)
+
+_default_cookie_secure = "1" if os.environ.get("K_SERVICE") else "0"
+COOKIE_SECURE = os.environ.get("MONEYTRON_COOKIE_SECURE", _default_cookie_secure).strip().lower() not in {"0", "false", "no"}
+CSRF_EXEMPT_PATHS = {
+    "/api/login",
+    "/api/signup",
+    "/api/csrf-token",
+    "/api/health",
+}
+RATE_LIMIT_RULES: Dict[str, Tuple[int, int]] = {
+    "/api/login": (10, 600),      # 10 attempts / 10 min per IP
+    "/api/signup": (5, 3600),     # 5 attempts / hour per IP
+    "/api/upload": (30, 600),     # 30 uploads / 10 min per IP
+    "/api/feedback": (15, 3600),  # 15 feedback posts / hour per IP
+}
+
+ALLOWED_UPLOAD_EXTENSIONS = {".csv", ".xls", ".xlsx"}
+_glock = RLock()
+_rate_lock = RLock()
+_rate_buckets: Dict[str, deque] = defaultdict(deque)
+
+
 @app.after_request
 def _hdrs(resp):
-    resp.headers["Access-Control-Allow-Origin"] = request.headers.get("Origin", "*")
-    resp.headers["Access-Control-Allow-Credentials"] = "true"
-    resp.headers["Access-Control-Allow-Headers"] = "Content-Type, X-User"
-    resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    origin = request.headers.get("Origin", "").strip()
+    if origin and _is_origin_allowed(origin):
+        resp.headers["Access-Control-Allow-Origin"] = origin
+        resp.headers["Access-Control-Allow-Credentials"] = "true"
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type, X-CSRF-Token"
+        resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        resp.headers["Vary"] = "Origin"
     return resp
 
 @app.before_request
 def _short_opts():
     if request.method == "OPTIONS":
-        return ("", 200)
+        origin = request.headers.get("Origin", "").strip()
+        if origin and not _is_origin_allowed(origin):
+            return jsonify({"ok": False, "error": "Origin not allowed"}), 403
+        return ("", 204)
 
-_glock = RLock()
-_CURRENT_USER = {"name": None}
+    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        limited, retry_after = _rate_limited(request.path)
+        if limited:
+            return (
+                jsonify({"ok": False, "error": "Too many requests. Please retry later."}),
+                429,
+                {"Retry-After": str(retry_after)},
+            )
+
+        if request.path.startswith("/api/") and request.path not in CSRF_EXEMPT_PATHS:
+            if not _validate_csrf():
+                return jsonify({"ok": False, "error": "CSRF validation failed."}), 403
+
+
+@app.errorhandler(RequestEntityTooLarge)
+def _handle_413(_exc):
+    return jsonify({"ok": False, "error": f"Upload too large. Max {MAX_UPLOAD_MB}MB."}), 413
 
 # =============================================================================
 # Utilities
@@ -104,13 +168,83 @@ def _sanitize_user(u: str) -> str:
     return u
 
 def _require_user() -> str:
-    """Get current user — prefer cookie (multi-user safe), fall back to global."""
+    """Cookie-only auth for internet-facing deployments."""
     cookie_user = request.cookies.get("mt_user", "").strip()
     if cookie_user:
         return _sanitize_user(cookie_user)
-    if _CURRENT_USER["name"]:
-        return _CURRENT_USER["name"]
     abort(400, description="No active user. POST /api/login first.")
+
+def _is_origin_allowed(origin: str) -> bool:
+    if not origin:
+        return False
+    if origin in ALLOWED_ORIGINS:
+        return True
+    # Always allow exact same-origin requests.
+    host = request.host_url.rstrip("/")
+    return origin.rstrip("/") == host
+
+def _client_ip() -> str:
+    # Cloud Run forwards X-Forwarded-For. Use first hop as source IP hint.
+    fwd = request.headers.get("X-Forwarded-For", "")
+    if fwd:
+        return fwd.split(",", 1)[0].strip()
+    return request.remote_addr or "unknown"
+
+def _rate_limited(path: str) -> Tuple[bool, int]:
+    rule = RATE_LIMIT_RULES.get(path)
+    if not rule:
+        return False, 0
+    limit, window_sec = rule
+    key = f"{path}:{_client_ip()}"
+    now = time.time()
+    with _rate_lock:
+        bucket = _rate_buckets[key]
+        while bucket and (now - bucket[0]) > window_sec:
+            bucket.popleft()
+        if len(bucket) >= limit:
+            retry_after = max(1, int(window_sec - (now - bucket[0])))
+            return True, retry_after
+        bucket.append(now)
+    return False, 0
+
+def _cookie_secure_kwargs() -> Dict[str, Any]:
+    return {
+        "httponly": True,
+        "samesite": "Lax",
+        "secure": COOKIE_SECURE,
+        "path": "/",
+    }
+
+def _issue_csrf_token() -> str:
+    return secrets.token_urlsafe(32)
+
+def _set_csrf_cookie(resp, token: str) -> None:
+    # Not HttpOnly by design: JS reads it and sends it in X-CSRF-Token header.
+    resp.set_cookie(
+        "mt_csrf",
+        token,
+        httponly=False,
+        samesite="Lax",
+        secure=COOKIE_SECURE,
+        path="/",
+    )
+
+def _set_auth_cookies(resp, username: str) -> str:
+    csrf_token = _issue_csrf_token()
+    resp.set_cookie("mt_user", username, **_cookie_secure_kwargs())
+    _set_csrf_cookie(resp, csrf_token)
+    return csrf_token
+
+def _clear_auth_cookies(resp) -> None:
+    resp.delete_cookie("mt_user", path="/")
+    resp.delete_cookie("mt_csrf", path="/")
+
+def _validate_csrf() -> bool:
+    csrf_cookie = request.cookies.get("mt_csrf", "")
+    csrf_header = request.headers.get("X-CSRF-Token", "")
+    if not csrf_cookie or not csrf_header:
+        return False
+    return hmac.compare_digest(csrf_cookie, csrf_header)
 
 def _user_dir(username: str) -> Path:
     p = (USERS_DIR / username).resolve()
@@ -128,25 +262,49 @@ def _paths(username: str) -> Dict[str, Path]:
         "password":   (udir / "password.json"),  # legacy, kept for backward compat
     }
 
-def _hash_pw(pw: str) -> str:
+def _hash_pw_sha256(pw: str) -> str:
     return hashlib.sha256(pw.encode("utf-8")).hexdigest()
 
-def _check_password(username: str, password: str) -> bool:
-    """Return True if password matches (or no password is set).
-    Reads password_hash from settings.json (preferred) or legacy password.json."""
+def _hash_pw_bcrypt(pw: str) -> str:
+    return bcrypt.hashpw(pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+def _is_sha256_hash(value: str) -> bool:
+    return bool(re.fullmatch(r"[a-fA-F0-9]{64}", value or ""))
+
+def _is_bcrypt_hash(value: str) -> bool:
+    return bool(value and value.startswith("$2"))
+
+def _check_password(username: str, password: str) -> Tuple[bool, bool]:
+    """
+    Returns:
+      (is_valid, should_upgrade_hash)
+    """
     p = _paths(username)
-    # First try settings.json (new location)
+
+    # Preferred: settings.json password_hash
     settings_data = _read_json(p["settings"], {})
     stored = settings_data.get("password_hash", "")
     if stored:
-        return _hash_pw(password) == stored
-    # Fall back to legacy password.json
+        if _is_bcrypt_hash(stored):
+            try:
+                return bcrypt.checkpw(password.encode("utf-8"), stored.encode("utf-8")), False
+            except ValueError:
+                return False, False
+        if _is_sha256_hash(stored):
+            valid = _hash_pw_sha256(password) == stored
+            return valid, valid
+        return False, False
+
+    # Legacy fallback: password.json hash (sha256)
     if p["password"].exists():
         pw_data = _read_json(p["password"], {})
         stored = pw_data.get("hash", "")
-        if stored:
-            return _hash_pw(password) == stored
-    return True  # No password set => open access
+        if _is_sha256_hash(stored):
+            valid = _hash_pw_sha256(password) == stored
+            return valid, valid
+
+    # No password hash set => open access
+    return True, False
 
 def _has_password(username: str) -> bool:
     """Check if a user has a password set."""
@@ -238,92 +396,105 @@ def health():
 # =============================================================================
 # Auth / session
 # =============================================================================
-@app.route("/api/users", methods=["GET"])
-def api_users():
-    out = []
-    for p in USERS_DIR.iterdir():
-        if p.is_dir():
-            out.append(p.name)
-    out.sort()
-    return jsonify(out)
+@app.route("/api/csrf-token", methods=["POST"])
+def api_csrf_token():
+    token = _issue_csrf_token()
+    resp = make_response(jsonify({"ok": True, "csrfToken": token}))
+    _set_csrf_cookie(resp, token)
+    return resp
 
 @app.route("/api/login", methods=["POST"])
 def api_login():
-    payload = request.get_json(force=True)
+    payload = request.get_json(silent=True) or {}
     username = _sanitize_user(payload.get("user") or payload.get("username") or payload.get("name") or "")
     password = payload.get("password", "")
-    # Check if user directory exists
+
+    # Check user directory.
     udir = _user_dir(username)
     if not udir.exists():
         return jsonify({"ok": False, "error": "User not found. Please sign up first."}), 404
-    # Check password
-    if not _check_password(username, password):
+
+    valid, should_upgrade = _check_password(username, password)
+    if not valid:
         return jsonify({"ok": False, "error": "Wrong password."}), 401
-    _CURRENT_USER["name"] = username
-    _ensure_user_files(username)
+
+    p = _ensure_user_files(username)
+    if should_upgrade:
+        settings_data = _read_json(p["settings"], {})
+        settings_data["password_hash"] = _hash_pw_bcrypt(password)
+        _atomic_write(p["settings"], settings_data)
+        logger.info(f"Password hash upgraded to bcrypt for user '{username}'")
+
     resp = make_response(jsonify({"ok": True, "user": username, "hasPassword": _has_password(username)}))
-    resp.set_cookie("mt_user", username, httponly=True, samesite="Lax")
+    csrf_token = _set_auth_cookies(resp, username)
+    resp.set_data(json.dumps({"ok": True, "user": username, "hasPassword": _has_password(username), "csrfToken": csrf_token}))
+    resp.mimetype = "application/json"
     return resp
 
 @app.route("/api/signup", methods=["POST"])
 def api_signup():
-    payload = request.get_json(force=True)
+    payload = request.get_json(silent=True) or {}
     username = _sanitize_user(payload.get("user") or payload.get("username") or payload.get("name") or "")
     password = payload.get("password", "")
     email = (payload.get("email") or "").strip()
+
     if not username:
         abort(400, description="Username is required.")
     if not password:
         abort(400, description="Password is required.")
     if not email:
         abort(400, description="Email is required.")
-    # Check if user already exists
+
+    # Check if user already exists.
     udir = _user_dir(username)
     if udir.exists():
         return jsonify({"ok": False, "error": "User already exists. Please login instead."}), 409
-    # Create user
-    _CURRENT_USER["name"] = username
+
+    # Create user.
     p = _ensure_user_files(username)
-    # Write password and email to settings.json
     settings_data = _read_json(p["settings"], {})
-    settings_data["password_hash"] = _hash_pw(password)
+    settings_data["password_hash"] = _hash_pw_bcrypt(password)
     settings_data["email"] = email
     _atomic_write(p["settings"], settings_data)
-    resp = make_response(jsonify({"ok": True, "user": username}))
-    resp.set_cookie("mt_user", username, httponly=True, samesite="Lax")
+
+    resp = make_response(jsonify({"ok": True, "user": username, "hasPassword": True}))
+    csrf_token = _set_auth_cookies(resp, username)
+    resp.set_data(json.dumps({"ok": True, "user": username, "hasPassword": True, "csrfToken": csrf_token}))
+    resp.mimetype = "application/json"
     return resp
 
 @app.route("/api/change-password", methods=["POST"])
 def api_change_password():
     user = _require_user()
-    payload = request.get_json(force=True)
+    payload = request.get_json(silent=True) or {}
     old_pw = payload.get("old_password", "")
     new_pw = payload.get("new_password", "")
     if not new_pw:
         abort(400, description="New password cannot be empty.")
-    # Verify old password
-    if not _check_password(user, old_pw):
+
+    valid, _ = _check_password(user, old_pw)
+    if not valid:
         return jsonify({"ok": False, "error": "Current password is incorrect."}), 401
+
     p = _paths(user)
-    # Write to settings.json (new location)
     settings_data = _read_json(p["settings"], {})
-    settings_data["password_hash"] = _hash_pw(new_pw)
+    settings_data["password_hash"] = _hash_pw_bcrypt(new_pw)
     _atomic_write(p["settings"], settings_data)
     return jsonify({"ok": True})
 
 @app.route("/api/logout", methods=["POST"])
 def api_logout():
-    _CURRENT_USER["name"] = None
     resp = make_response(jsonify({"ok": True}))
-    resp.delete_cookie("mt_user")
+    _clear_auth_cookies(resp)
     return resp
 
 @app.route("/api/bootstrap", methods=["GET"])
 def api_bootstrap():
     cookie_user = request.cookies.get("mt_user", "").strip()
-    user = cookie_user or _CURRENT_USER["name"]
+    user = cookie_user
     if not user:
         return jsonify({"user": ""})
+    user = _sanitize_user(user)
     p = _ensure_user_files(user)
     settings_data = _read_json(p["settings"], {"dateFormat": "YYYY-MM-DD", "currency": "ILS"})
     # Strip sensitive fields from settings before sending to client
@@ -514,62 +685,84 @@ def api_clear_all():
     _atomic_write(p["past"], [])
     return jsonify({"ok": True})
 
-# =============================================================================
-# NEW: File upload + parse (replaces client-side XLSX.js parsing)
-# =============================================================================
-@app.route("/api/upload", methods=["POST"])
-def api_upload():
-    """
-    Accept a file upload (multipart/form-data), parse it server-side,
-    auto-categorize, and return the transactions.
-
-    Form fields:
-        file: the XLS/XLSX/CSV file
-        tag: month tag (1-12)
-        year: e.g. 2025
-    """
+@app.route("/api/export", methods=["GET"])
+def api_export():
     user = _require_user()
     p = _ensure_user_files(user)
 
-    f = request.files.get("file")
-    if not f or not f.filename:
-        abort(400, description="No file uploaded")
+    settings_data = _read_json(p["settings"], {})
+    safe_settings = {k: v for k, v in settings_data.items() if k not in ("password_hash",)}
+    payload = {
+        "user": user,
+        "categories": _read_json(p["categories"], {}),
+        "current_month": _read_json(p["stage"], []),
+        "past_data": _read_json(p["past"], []),
+        "settings": safe_settings,
+        "exported_at": datetime.utcnow().isoformat() + "Z",
+    }
 
-    tag = request.form.get("tag")
-    year = request.form.get("year")
+    resp = make_response(json.dumps(payload, ensure_ascii=False, indent=2))
+    resp.headers["Content-Type"] = "application/json; charset=utf-8"
+    resp.headers["Content-Disposition"] = f'attachment; filename="moneytron_{user}_export.json"'
+    return resp
 
-    try:
-        tag = int(tag)
-        if tag < 1 or tag > 12:
-            abort(400, description="Tag must be 1-12")
-    except (ValueError, TypeError):
-        abort(400, description="Invalid tag value")
+@app.route("/api/account/delete", methods=["POST"])
+def api_account_delete():
+    user = _require_user()
+    payload = request.get_json(silent=True) or {}
+    provided_password = payload.get("password", "")
 
-    try:
-        year = int(year)
-        if year < 2000 or year > 2100:
-            abort(400, description="Year must be 2000-2100")
-    except (ValueError, TypeError):
-        abort(400, description="Invalid year value")
+    if _has_password(user):
+        valid, _ = _check_password(user, provided_password)
+        if not valid:
+            return jsonify({"ok": False, "error": "Incorrect password."}), 401
 
-    file_bytes = f.read()
-    file_name = f.filename
+    udir = _user_dir(user)
+    if udir.exists():
+        shutil.rmtree(udir, ignore_errors=True)
 
-    try:
-        extracted = extract_transactions(file_bytes, file_name, user_tag=tag)
-    except Exception as e:
-        logger.error(f"File parse error: {e}")
-        return jsonify({"ok": False, "error": f"Parse failed: {str(e)}"}), 400
+    resp = make_response(jsonify({"ok": True, "deleted": user}))
+    _clear_auth_cookies(resp)
+    return resp
 
-    # Build transactions with user-provided tag and year + IDs
-    # Tag format: "month/shortYear" e.g. "2/26"
+def _is_allowed_upload_file(filename: str) -> bool:
+    ext = Path(filename or "").suffix.lower()
+    return ext in ALLOWED_UPLOAD_EXTENSIONS
+
+def _normalized_mapping(mapping: Optional[Dict[str, Any]]) -> Optional[Dict[str, int]]:
+    if not mapping:
+        return None
+    if not isinstance(mapping, dict):
+        raise ValueError("Mapping must be an object.")
+
+    out: Dict[str, int] = {}
+    for key in ("date", "name", "amount", "debit"):
+        raw = mapping.get(key)
+        if raw in (None, ""):
+            continue
+        try:
+            out[key] = int(raw)
+        except (ValueError, TypeError):
+            raise ValueError(f"Mapping value for '{key}' must be an integer.")
+
+    if "date" not in out or "name" not in out or ("amount" not in out and "debit" not in out):
+        raise ValueError("Mapping must include at least date, name, and amount/debit columns.")
+    return out
+
+def _build_uploaded_rows(
+    extracted: List[Dict[str, Any]],
+    tag: int,
+    year: int,
+    file_index: int,
+) -> List[Dict[str, Any]]:
     tag_display = f"{tag}/{str(year)[-2:]}"
-    built = []
+    built: List[Dict[str, Any]] = []
+    ts_ms = int(time.time() * 1000)
     for i, x in enumerate(extracted):
         date_iso = x.get("date_iso") or x.get("date", "")
         date_str = x.get("date_str", "")
         built.append({
-            "id": f"u_{i}_{int(time.time() * 1000)}",
+            "id": f"u_{file_index}_{i}_{ts_ms}",
             "tag": tag_display,
             "date": date_iso,
             "date_iso": date_iso,
@@ -587,19 +780,173 @@ def api_upload():
             "vi": False,
             "manual": False,
         })
+    return built
 
-    # Auto-categorize using past data + categories
+# =============================================================================
+# NEW: File upload + parse (replaces client-side XLSX.js parsing)
+# =============================================================================
+@app.route("/api/upload", methods=["POST"])
+def api_upload():
+    """
+    Accept a file upload (multipart/form-data), parse it server-side,
+    auto-categorize, and return the transactions.
+
+    Form fields:
+        file: the XLS/XLSX/CSV file
+        tag: month tag (1-12)
+        year: e.g. 2025
+    """
+    user = _require_user()
+    p = _ensure_user_files(user)
+
+    files = request.files.getlist("files")
+    if not files:
+        single = request.files.get("file")
+        if single and single.filename:
+            files = [single]
+    if not files:
+        abort(400, description="No files uploaded")
+
+    tag = request.form.get("tag")
+    year = request.form.get("year")
+    mapping_raw = request.form.get("mapping", "").strip()
+    mapping: Optional[Dict[str, int]] = None
+
+    try:
+        tag = int(tag)
+        if tag < 1 or tag > 12:
+            abort(400, description="Tag must be 1-12")
+    except (ValueError, TypeError):
+        abort(400, description="Invalid tag value")
+
+    try:
+        year = int(year)
+        if year < 2000 or year > 2100:
+            abort(400, description="Year must be 2000-2100")
+    except (ValueError, TypeError):
+        abort(400, description="Invalid year value")
+
+    if mapping_raw:
+        try:
+            mapping = _normalized_mapping(json.loads(mapping_raw))
+        except Exception as e:
+            return jsonify({"ok": False, "error": f"Invalid mapping payload: {e}"}), 400
+
     past_data = _read_json(p["past"], [])
     categories = _read_json(p["categories"], {})
-    categorized = auto_categorize_rows(built, past_data, categories)
+    aggregate_rows: List[Dict[str, Any]] = []
+    file_results: List[Dict[str, Any]] = []
 
-    logger.info(f"Upload: {len(categorized)} rows from {file_name} for user {user}")
+    for file_index, f in enumerate(files):
+        file_name = (f.filename or "").strip()
+        if not file_name:
+            file_results.append({
+                "ok": False,
+                "file": "",
+                "count": 0,
+                "status": "failed",
+                "error": "Missing file name.",
+                "needs_mapping": False,
+                "transactions": [],
+            })
+            continue
+
+        if not _is_allowed_upload_file(file_name):
+            file_results.append({
+                "ok": False,
+                "file": file_name,
+                "count": 0,
+                "status": "failed",
+                "error": f"Unsupported file type: {Path(file_name).suffix.lower()}",
+                "needs_mapping": False,
+                "transactions": [],
+            })
+            continue
+
+        file_bytes = f.read()
+        if not file_bytes:
+            file_results.append({
+                "ok": False,
+                "file": file_name,
+                "count": 0,
+                "status": "failed",
+                "error": "File is empty.",
+                "needs_mapping": False,
+                "transactions": [],
+            })
+            continue
+        if len(file_bytes) > MAX_UPLOAD_BYTES:
+            file_results.append({
+                "ok": False,
+                "file": file_name,
+                "count": 0,
+                "status": "failed",
+                "error": f"File exceeds max size ({MAX_UPLOAD_MB}MB).",
+                "needs_mapping": False,
+                "transactions": [],
+            })
+            continue
+
+        parse_error: Optional[str] = None
+        used_mapping = False
+        extracted: List[Dict[str, Any]] = []
+
+        try:
+            extracted = extract_transactions(file_bytes, file_name, user_tag=tag)
+        except Exception as e:
+            parse_error = str(e)
+            logger.warning(f"Primary parse failed for {file_name}: {e}")
+
+        if parse_error and mapping:
+            try:
+                extracted = extract_transactions_with_mapping(file_bytes, file_name, user_tag=tag, mapping=mapping)
+                parse_error = None
+                used_mapping = True
+            except Exception as e:
+                parse_error = f"{parse_error} | mapping fallback failed: {e}"
+
+        if parse_error:
+            file_results.append({
+                "ok": False,
+                "file": file_name,
+                "count": 0,
+                "status": "failed",
+                "error": f"Parse failed: {parse_error}",
+                "needs_mapping": Path(file_name).suffix.lower() == ".csv",
+                "transactions": [],
+            })
+            continue
+
+        built = _build_uploaded_rows(extracted, tag, year, file_index)
+        categorized = auto_categorize_rows(built, past_data, categories)
+        aggregate_rows.extend(categorized)
+        file_results.append({
+            "ok": True,
+            "file": file_name,
+            "count": len(categorized),
+            "status": "done",
+            "used_mapping": used_mapping,
+            "steps": ["uploaded", "parsed", "categorized"],
+            "transactions": categorized,
+        })
+
+    success_count = sum(1 for item in file_results if item.get("ok"))
+    if success_count == 0:
+        return jsonify({
+            "ok": False,
+            "error": "No files were parsed successfully.",
+            "files": file_results,
+            "transactions": [],
+            "count": 0,
+        }), 400
+
+    logger.info(f"Upload: {len(aggregate_rows)} rows from {success_count}/{len(files)} files for user {user}")
 
     return jsonify({
         "ok": True,
-        "transactions": categorized,
-        "count": len(categorized),
-        "file": file_name,
+        "files": file_results,
+        "transactions": aggregate_rows,
+        "count": len(aggregate_rows),
     })
 
 # =============================================================================
@@ -781,108 +1128,6 @@ def api_feedback():
         "email_sent": email_sent,
         "has_email": bool(user_email),
     })
-
-# =============================================================================
-# Debug endpoint
-# =============================================================================
-@app.route("/api/debug", methods=["GET"])
-def api_debug():
-    """Debug endpoint to check filesystem and environment"""
-    try:
-        import platform
-        import socket
-        
-        debug_info = {
-            "platform": platform.platform(),
-            "hostname": socket.gethostname(),
-            "users_dir": str(USERS_DIR),
-            "users_dir_exists": USERS_DIR.exists(),
-            "users_dir_contents": [],
-            "environment": {
-                "MONEYTRON_DATA_DIR": os.environ.get("MONEYTRON_DATA_DIR", "NOT SET"),
-                "PORT": os.environ.get("PORT", "NOT SET"),
-                "PWD": os.environ.get("PWD", "NOT SET"),
-                "PATH": os.environ.get("PATH", "")[:200] + "..." if len(os.environ.get("PATH", "")) > 200 else os.environ.get("PATH", ""),
-            }
-        }
-        
-        # Try to list users directory
-        if USERS_DIR.exists():
-            try:
-                debug_info["users_dir_contents"] = [str(item.name) for item in USERS_DIR.iterdir()]
-            except Exception as e:
-                debug_info["users_dir_error"] = str(e)
-        
-        # Check specific user directories
-        for username in ["Yoav", "Roy", "bla"]:
-            user_dir = USERS_DIR / username
-            user_info = {
-                "exists": user_dir.exists(),
-                "is_dir": user_dir.is_dir() if user_dir.exists() else False,
-                "files": []
-            }
-            if user_dir.exists():
-                try:
-                    user_info["files"] = [f.name for f in user_dir.iterdir()]
-                except Exception as e:
-                    user_info["error"] = str(e)
-            debug_info[f"user_{username}"] = user_info
-        
-        return jsonify(debug_info)
-    except Exception as e:
-        return jsonify({"error": str(e)})
-
-@app.route("/api/debug/<username>", methods=["GET"])
-def api_debug_user(username):
-    """Debug specific user data loading"""
-    try:
-        username = _sanitize_user(username)
-        p = _paths(username)
-        
-        debug_info = {
-            "username": username,
-            "paths": {k: str(v) for k, v in p.items()},
-            "file_status": {}
-        }
-        
-        # Check each file
-        for key, path in p.items():
-            status = {
-                "path": str(path),
-                "exists": path.exists(),
-                "readable": False,
-                "size": 0,
-                "content_sample": None,
-                "error": None
-            }
-            
-            if path.exists():
-                try:
-                    # Check if readable
-                    with path.open("r", encoding="utf-8") as f:
-                        content = f.read()
-                    status["readable"] = True
-                    status["size"] = len(content)
-                    # Show first 200 chars of content
-                    status["content_sample"] = content[:200] + "..." if len(content) > 200 else content
-                except Exception as e:
-                    status["error"] = str(e)
-            
-            debug_info["file_status"][key] = status
-        
-        # Try to load data using app's normal methods
-        debug_info["app_data"] = {}
-        try:
-            debug_info["app_data"]["categories"] = _read_json(p["categories"], {})
-            debug_info["app_data"]["past"] = _read_json(p["past"], [])
-            debug_info["app_data"]["stage"] = _read_json(p["stage"], [])
-            debug_info["app_data"]["settings"] = _read_json(p["settings"], {})
-        except Exception as e:
-            debug_info["app_data"]["error"] = str(e)
-        
-        return jsonify(debug_info)
-    except Exception as e:
-        return jsonify({"error": str(e)})
 
 # =============================================================================
 # Entrypoint

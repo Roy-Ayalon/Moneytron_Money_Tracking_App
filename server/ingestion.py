@@ -668,10 +668,89 @@ def _read_csv(file_bytes):
     matrix = [row for row in reader]
     return [("Sheet1", matrix)]
 
+def _extract_from_csv_with_mapping(file_bytes, mapping):
+    """
+    Fallback parser for CSV files when header detection fails.
+    mapping keys: date, name, amount (optional), debit (optional)
+    values are zero-based column indices.
+    """
+    sheets = _read_csv(file_bytes)
+    _, matrix = sheets[0]
+    if not matrix:
+        return []
+
+    date_col = int(mapping["date"])
+    name_col = int(mapping["name"])
+    amount_col = mapping.get("amount")
+    debit_col = mapping.get("debit")
+    amount_col = int(amount_col) if amount_col is not None else None
+    debit_col = int(debit_col) if debit_col is not None else None
+
+    out = []
+    for row in matrix:
+        if not row:
+            continue
+        if date_col >= len(row) or name_col >= len(row):
+            continue
+
+        d = parse_date_flex(row[date_col])
+        if not d:
+            # Skip header-like/invalid date rows.
+            continue
+
+        name = clean_html(row[name_col]).strip()
+        if not name:
+            continue
+
+        amount_raw = row[amount_col] if amount_col is not None and amount_col < len(row) else None
+        debit_raw = row[debit_col] if debit_col is not None and debit_col < len(row) else None
+
+        amount_num = numify(amount_raw)
+        debit_num = numify(debit_raw)
+        base = None
+        if debit_num is not None and abs(debit_num) > 0:
+            base = debit_num
+        elif amount_num is not None and abs(amount_num) > 0:
+            base = amount_num
+
+        if base is None:
+            continue
+
+        iso = d.strftime("%Y-%m-%d")
+        out.append({
+            "date": iso,
+            "date_iso": iso,
+            "date_str": d.strftime("%d-%m-%Y"),
+            "year": d.year,
+            "month_tag": d.month,
+            "tag": d.month,
+            "name": name,
+            "amount": abs(float(amount_num if amount_num is not None else base)),
+            "debit": abs(float(debit_num if debit_num is not None else base)),
+            "__credit": float(base) < 0,
+        })
+    return out
 
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
+def extract_transactions_with_mapping(file_bytes, file_name, user_tag=None, mapping=None):
+    """
+    Fallback extraction with explicit user-provided mapping.
+    Current implementation supports CSV only.
+    """
+    ext = (file_name or "").rsplit(".", 1)[-1].lower()
+    if ext != "csv":
+        raise ValueError("Manual mapping fallback currently supports CSV files only.")
+    if not isinstance(mapping, dict):
+        raise ValueError("Mapping payload is required for fallback parsing.")
+
+    rows = _extract_from_csv_with_mapping(file_bytes, mapping)
+    if not rows:
+        raise ValueError("No valid rows found using the provided mapping.")
+    logger.info(f"Parsed {len(rows)} rows from {file_name} using manual mapping")
+    return rows
 
 def extract_transactions(file_bytes, file_name, user_tag=None):
     """

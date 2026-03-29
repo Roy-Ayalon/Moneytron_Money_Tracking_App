@@ -295,6 +295,43 @@
       outline:none; border-color:#7c3aed;
       box-shadow:0 0 0 3px rgba(124,58,237,.12);
     }
+    .help-drawer{
+      position:fixed; top:0; right:0; height:100vh; width:min(420px,92vw); z-index:10000;
+      background:#fff; border-left:1px solid #e8e6fb; box-shadow:-10px 0 30px rgba(20,10,60,.18);
+      padding:20px; overflow-y:auto;
+    }
+    .help-drawer h3{ margin:0 0 8px; color:#2c2761; }
+    .help-card{ background:#f8f7ff; border:1px solid #e8e6fb; border-radius:12px; padding:12px; margin-bottom:10px; }
+    .help-card p{ margin:6px 0 0; color:#4a4d6b; font-size:13px; line-height:1.5; }
+    .upload-dropzone{
+      border:2px dashed #b8a7f5; border-radius:14px; padding:14px; background:#f8f7ff; color:#4338ca;
+      text-align:center; font-weight:700; cursor:pointer;
+    }
+    .upload-dropzone.dragging{ background:#ede9fe; border-color:#7c3aed; }
+    .upload-file-list{ margin:10px 0 0; max-height:150px; overflow:auto; text-align:left; }
+    .upload-file-list li{ font-size:13px; color:#334155; margin-bottom:4px; }
+    .onboarding-card{
+      border:1.5px solid #e8e6fb; border-radius:14px; padding:14px; background:#fcfbff; margin:0 0 12px;
+    }
+    .onboarding-card h4{ margin:0 0 6px; color:#2c2761; }
+    .onboarding-card li{ margin-bottom:5px; font-size:13px; color:#4a4d6b; }
+    .tooltip{
+      display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px;
+      border-radius:999px; background:#ede9fe; color:#5b21b6; font-weight:800; font-size:11px; margin-left:6px;
+      cursor:help;
+    }
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible{
+      outline:3px solid #facc15;
+      outline-offset:2px;
+    }
+    @media (max-width: 780px){
+      .topbar{ flex-wrap:wrap; }
+      .controls{ gap:8px; }
+      .controls .right, .controls .left{ width:100%; justify-content:flex-start !important; }
+      .feedback-fab{ bottom:14px; right:14px; padding:10px 14px; font-size:12px; }
+      .title{ font-size:34px; }
+      .panel{ padding:14px; }
+    }
   </style>
 </head>
 <body>
@@ -302,6 +339,66 @@
 
   <script type="text/babel" data-presets="react">
 function fmt2(n){ n=Number(n); if(!isFinite(n)) return '0.00'; return n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+const I18N = {
+  en: {
+    app_title: 'MoneyTron - Multi-User Money Tracker',
+    tabs_transactions: 'Transactions',
+    tabs_summary: 'Summary',
+    tabs_statistics: 'Statistics',
+    tabs_data: 'Data',
+    tabs_categories: 'Categories',
+    tabs_tutorial: 'Tutorial',
+    login: 'Login',
+    signup: 'Sign Up',
+    welcome: 'Welcome',
+    upload_statement: 'Upload your bank statement',
+    add_manual: 'Add Manual Row',
+    save_all: 'Save All',
+    delete_all: 'Delete All',
+    help: 'Help',
+    lang: 'Language',
+    export_data: 'Export Data',
+    delete_account: 'Delete Account',
+    privacy_signup: 'Your data is private and tied to your account only.',
+    privacy_upload: 'We parse your selected files to extract transactions. Nothing is committed until you click Save All.',
+    no_transactions: 'No transactions yet. Upload your first bank statement to get started.',
+  },
+  he: {
+    app_title: 'MoneyTron - מעקב כספים',
+    tabs_transactions: 'תנועות',
+    tabs_summary: 'סיכום',
+    tabs_statistics: 'סטטיסטיקות',
+    tabs_data: 'נתונים',
+    tabs_categories: 'קטגוריות',
+    tabs_tutorial: 'מדריך',
+    login: 'התחברות',
+    signup: 'הרשמה',
+    welcome: 'ברוך הבא',
+    upload_statement: 'העלה דוח בנק',
+    add_manual: 'הוסף ידנית',
+    save_all: 'שמור הכל',
+    delete_all: 'מחק הכל',
+    help: 'עזרה',
+    lang: 'שפה',
+    export_data: 'ייצוא נתונים',
+    delete_account: 'מחיקת חשבון',
+    privacy_signup: 'הנתונים שלך פרטיים ומופרדים לכל משתמש.',
+    privacy_upload: 'המערכת מנתחת את הקבצים שבחרת. שום דבר לא נשמר קבוע עד שלוחצים "שמור הכל".',
+    no_transactions: 'אין תנועות עדיין. העלה דוח ראשון כדי להתחיל.',
+  }
+};
+function getCookie(name){
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const m = document.cookie.match(new RegExp('(?:^|; )' + escaped + '=([^;]*)'));
+  return m ? decodeURIComponent(m[1]) : '';
+}
+function makeTranslator(lang){
+  const dict = I18N[lang] || I18N.en;
+  return function t(key){
+    if(Object.prototype.hasOwnProperty.call(dict, key)) return dict[key];
+    return I18N.en[key] || key;
+  };
+}
 
 /* ---------- Feedback / Improvements Button (always visible) ---------- */
 function FeedbackButton(){
@@ -320,7 +417,7 @@ function FeedbackButton(){
     fetch('/api/feedback', {
       method: 'POST',
       credentials: 'include',
-      headers: {'Content-Type': 'application/json'},
+      headers: {'Content-Type': 'application/json', 'X-CSRF-Token': getCookie('mt_csrf') || ''},
       body: JSON.stringify({name: name, message: feedbackText})
     })
     .then(r => r.json())
@@ -433,10 +530,25 @@ function parseDMYtoISO(dmyStr) {
 
 var API=(function(){
   var base='/api';
-  function j(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }
-  function f(m,u,b){ var o={method:m,credentials:'include',headers:{}}; if(b){o.headers['Content-Type']='application/json';o.body=JSON.stringify(b);} return fetch(base+u,o); }
+  function j(r){
+    if(!r.ok){
+      return r.json().catch(function(){ return {error:'HTTP '+r.status}; }).then(function(payload){
+        throw new Error(payload.error || ('HTTP ' + r.status));
+      });
+    }
+    return r.json();
+  }
+  function csrf(){ return window.__mtCsrfToken || getCookie('mt_csrf') || ''; }
+  function f(m,u,b){
+    var o={method:m,credentials:'include',headers:{}};
+    if(m !== 'GET' && m !== 'HEAD'){
+      o.headers['X-CSRF-Token'] = csrf();
+    }
+    if(b){o.headers['Content-Type']='application/json';o.body=JSON.stringify(b);}
+    return fetch(base+u,o);
+  }
   return {
-    users:()=>f('GET','/users').then(j),
+    csrfToken:()=>f('POST','/csrf-token',{}).then(j).then(function(d){ window.__mtCsrfToken = d.csrfToken || getCookie('mt_csrf') || ''; return d; }),
     login:(user,password)=>f('POST','/login',{user,password}).then(j),
     signup:(user,password,email)=>f('POST','/signup',{user,password,email}).then(j),
     bootstrap:()=>f('GET','/bootstrap').then(j),
@@ -453,17 +565,20 @@ var API=(function(){
     saveSettings:(settings)=>f('POST','/settings',{settings}).then(j),
     importData:(payload)=>f('POST','/import',payload).then(j),
     clearAll:()=>f('POST','/clear-all').then(j),
+    deleteAccount:(password)=>f('POST','/account/delete',{password}).then(j),
+    exportData:()=>fetch(base+'/export',{method:'GET',credentials:'include'}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.blob(); }),
     // New unified statistics endpoint
     getStatistics:(payload)=>f('POST','/statistics',payload).then(j),
     // Summary aggregation (server-side)
-    getSummary:()=>fetch(base+'/summary',{method:'GET',credentials:'include'}).then(j),
+    getSummary:()=>f('GET','/summary').then(j),
     // File upload (server-side parsing)
-    uploadFile:(file, tag, year)=>{
+    uploadFiles:(files, tag, year, mapping)=>{
       var fd = new FormData();
-      fd.append('file', file);
+      (files || []).forEach(function(file){ fd.append('files', file); });
       fd.append('tag', String(tag));
       fd.append('year', String(year));
-      return fetch(base+'/upload', {method:'POST', credentials:'include', body:fd}).then(j);
+      if(mapping){ fd.append('mapping', JSON.stringify(mapping)); }
+      return fetch(base+'/upload', {method:'POST', credentials:'include', headers:{'X-CSRF-Token':csrf()}, body:fd}).then(j);
     },
     // Auto-categorize (server-side)
     autoCategorize:(rows)=>f('POST','/auto-categorize',{transactions:rows}).then(j),
@@ -551,7 +666,7 @@ function TitleBar({user,onSwitch}){ return (
   </div>
 );}
 
-function LoginView({onLogin, onSignup}){
+function LoginView({onLogin, onSignup, t}){
   const nameRef=React.useRef(null);
   const pwRef=React.useRef(null);
   const [err,setErr]=React.useState('');
@@ -579,18 +694,18 @@ function LoginView({onLogin, onSignup}){
   React.useEffect(()=>{ window._loginSetErr = setErr; window._signupSetMsg = setSignupMsg; return ()=>{ delete window._loginSetErr; delete window._signupSetMsg; }; },[]);
   return (
     <div className="wrap" style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'80vh'}}>
-      <h1 className="title">MoneyTron - Multi-User Money Tracker</h1>
+      <h1 className="title">{t ? t('app_title') : 'MoneyTron - Multi-User Money Tracker'}</h1>
       {mode === 'login' ? (
         <div className="login-card">
-          <h2>👋 Welcome</h2>
+          <h2>👋 {t ? t('welcome') : 'Welcome'}</h2>
           <div className="login-sub">Sign in to manage your finances</div>
           <input ref={nameRef} type="text" placeholder="Enter your name (e.g., Yoav)" onKeyDown={(e)=>{if(e.key==='Enter' && pwRef.current) pwRef.current.focus();}}/>
           <input ref={pwRef} type="password" placeholder="Password" style={{marginTop:8}} onKeyDown={(e)=>{if(e.key==='Enter') doLogin();}}/>
           {err && <div style={{color:'#dc2626',fontSize:13,marginTop:6,fontWeight:600}}>{err}</div>}
-          <button className="pill" onClick={doLogin}>Login</button>
+          <button className="pill" onClick={doLogin}>{t ? t('login') : 'Login'}</button>
           <div style={{marginTop:14,fontSize:13,color:'#667085'}}>
             Don't have an account?{' '}
-            <a href="#" onClick={(e)=>{e.preventDefault();setMode('signup');setErr('');}} style={{color:'#6b46c1',fontWeight:700,textDecoration:'none'}}>Sign Up</a>
+            <a href="#" onClick={(e)=>{e.preventDefault();setMode('signup');setErr('');}} style={{color:'#6b46c1',fontWeight:700,textDecoration:'none'}}>{t ? t('signup') : 'Sign Up'}</a>
           </div>
         </div>
       ) : (
@@ -603,10 +718,11 @@ function LoginView({onLogin, onSignup}){
           <input id="signup-email" type="email" placeholder="Email" style={{marginTop:8}} value={signupEmail} onChange={e=>setSignupEmail(e.target.value)} onKeyDown={e=>{if(e.key==='Enter') doSignup();}}/>
           {err && <div style={{color:'#dc2626',fontSize:13,marginTop:6,fontWeight:600}}>{err}</div>}
           {signupMsg && <div style={{color:'#16a34a',fontSize:13,marginTop:6,fontWeight:600}}>{signupMsg}</div>}
-          <button className="pill" onClick={doSignup}>Sign Up</button>
+          <button className="pill" onClick={doSignup}>{t ? t('signup') : 'Sign Up'}</button>
+          <div style={{marginTop:10,fontSize:12,color:'#475569',lineHeight:1.4}}>{t ? t('privacy_signup') : 'Your data is private and tied to your account only.'}</div>
           <div style={{marginTop:14,fontSize:13,color:'#667085'}}>
             Already have an account?{' '}
-            <a href="#" onClick={(e)=>{e.preventDefault();setMode('login');setErr('');setSignupMsg('');}} style={{color:'#6b46c1',fontWeight:700,textDecoration:'none'}}>Login</a>
+            <a href="#" onClick={(e)=>{e.preventDefault();setMode('login');setErr('');setSignupMsg('');}} style={{color:'#6b46c1',fontWeight:700,textDecoration:'none'}}>{t ? t('login') : 'Login'}</a>
           </div>
         </div>
       )}
@@ -682,15 +798,20 @@ function CategoriesTab({user, categories, onSaved}){
 }
 
 /* ---------- Transactions ---------- */
-function TransactionsTab({rows,setRows,categories,onSaved}){
+function TransactionsTab({rows,setRows,categories,onSaved,t,hasPastData}){
   const [msg,setMsg]=React.useState(''); const [sortKey,setSortKey]=React.useState('date'); const [sortDir,setSortDir]=React.useState('desc');
   const [q,setQ]=React.useState('');
   // Upload modal state
   const [showUploadModal, setShowUploadModal] = React.useState(false);
-  const [pendingFile, setPendingFile] = React.useState(null);
+  const [pendingFiles, setPendingFiles] = React.useState([]);
   const [uploadTag, setUploadTag] = React.useState(dayjs().month()+1);
   const [uploadYear, setUploadYear] = React.useState(dayjs().year());
   const [uploading, setUploading] = React.useState(false);
+  const [uploadStep, setUploadStep] = React.useState('');
+  const [uploadReport, setUploadReport] = React.useState([]);
+  const [dragging, setDragging] = React.useState(false);
+  const [useMapping, setUseMapping] = React.useState(false);
+  const [manualMap, setManualMap] = React.useState({date:0,name:1,amount:2,debit:3});
 
   function addManual(){
     const now = dayjs();
@@ -709,33 +830,82 @@ function TransactionsTab({rows,setRows,categories,onSaved}){
     };
     const next=[r].concat(rows); setRows(next); API.saveStage(next).catch(()=>{});
   }
-  // When file is selected, show the upload modal instead of uploading immediately
+  function addFiles(filesList){
+    const all = Array.from(filesList || []);
+    if(!all.length) return;
+    const accepted = [];
+    const rejected = [];
+    all.forEach(f=>{
+      const ext = (f.name || '').toLowerCase().split('.').pop();
+      const validExt = ['csv','xls','xlsx'].includes(ext);
+      const validSize = f.size <= (12 * 1024 * 1024);
+      if(validExt && validSize) accepted.push(f);
+      else rejected.push(f.name || 'unnamed');
+    });
+    if(rejected.length){
+      alert('Rejected files: ' + rejected.join(', ') + '. Supported: .csv, .xls, .xlsx up to 12MB each.');
+    }
+    if(accepted.length){
+      setPendingFiles(prev=>{
+        const next = prev.slice();
+        accepted.forEach(file=>{
+          const dup = next.some(x=>x.name===file.name && x.size===file.size && x.lastModified===file.lastModified);
+          if(!dup) next.push(file);
+        });
+        return next;
+      });
+      setUploadTag(dayjs().month()+1);
+      setUploadYear(dayjs().year());
+      setShowUploadModal(true);
+    }
+  }
+  // When file(s) are selected, open modal and queue all valid files.
   function onFileSelect(e){
-    const f=e.target.files && e.target.files[0]; if(!f) return;
-    setPendingFile(f);
-    setUploadTag(dayjs().month()+1);
-    setUploadYear(dayjs().year());
-    setShowUploadModal(true);
+    addFiles(e.target.files);
     e.target.value='';
+  }
+  function onDropFiles(e){
+    e.preventDefault();
+    setDragging(false);
+    addFiles(e.dataTransfer.files);
+  }
+  function removeQueuedFile(index){
+    setPendingFiles(prev=>prev.filter((_,i)=>i!==index));
   }
   // Perform the upload after user confirms tag/year in the modal
   async function doUpload(){
-    if(!pendingFile) return;
+    if(!pendingFiles.length) return;
     var tag=uploadTag, year=uploadYear;
     if(!isFinite(tag)||tag<1||tag>12){ alert('Tag must be 1–12'); return; }
     if(!isFinite(year)||year<2000||year>2100){ alert('Year must be 2000–2100'); return; }
     setUploading(true);
+    setUploadStep('Uploading files...');
     try{
-      const result = await API.uploadFile(pendingFile, tag, year);
+      const mappingPayload = useMapping ? {
+        date: Number(manualMap.date),
+        name: Number(manualMap.name),
+        amount: Number(manualMap.amount),
+        debit: Number(manualMap.debit)
+      } : null;
+      const result = await API.uploadFiles(pendingFiles, tag, year, mappingPayload);
       if (!result.ok) { alert(result.error || 'Upload failed'); return; }
-
+      setUploadStep('Parsing and categorizing...');
       const autoed = result.transactions || [];
+      setUploadReport(result.files || []);
       // Replace temporary upload batch so each upload shows only the latest unsaved rows
       setRows(autoed);
-      setMsg('\u2705 Imported ' + autoed.length + ' rows from "' + pendingFile.name + '" | Tag: ' + tag + '/' + String(year).slice(-2));
+      const successCount = (result.files || []).filter(f=>f.ok).length;
+      const failCount = (result.files || []).filter(f=>!f.ok).length;
+      setMsg('\u2705 Imported ' + autoed.length + ' rows from ' + successCount + ' file(s)' + (failCount ? (' | ' + failCount + ' failed') : '') + ' | Tag: ' + tag + '/' + String(year).slice(-2));
       await API.saveStage(autoed);
+      setUploadStep('Done');
     }catch(err){ alert('Parse failed: '+err.message); }
-    finally{ setUploading(false); setShowUploadModal(false); setPendingFile(null); }
+    finally{
+      setUploading(false);
+      setShowUploadModal(false);
+      setPendingFiles([]);
+      setUseMapping(false);
+    }
   }
   function saveAll(){
     if(!rows.length){ alert('No transactions to save'); return; }
@@ -830,7 +1000,7 @@ function TransactionsTab({rows,setRows,categories,onSaved}){
     if (!rows.length) { alert('No transactions to delete'); return; }
     if (!window.confirm('Are you sure you want to delete all current (last upload) transactions?')) return;
     try {
-      await fetch('/api/current-month/reset', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' } });
+      await fetch('/api/current-month/reset', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCookie('mt_csrf') || '' } });
       setRows([]);
       setMsg('All current month transactions deleted.');
     } catch (err) {
@@ -841,24 +1011,82 @@ function TransactionsTab({rows,setRows,categories,onSaved}){
     <React.Fragment>
       {/* Upload Modal */}
       {showUploadModal && (
-        <div className="modal-overlay" onClick={()=>{ if(!uploading){setShowUploadModal(false);setPendingFile(null);} }}>
+        <div className="modal-overlay" role="dialog" aria-modal="true" onClick={()=>{ if(!uploading){setShowUploadModal(false);setPendingFiles([]);} }}>
           <div className="modal-card" onClick={e=>e.stopPropagation()}>
-            <h3>📁 Upload File</h3>
-            <p className="muted" style={{margin:'2px 0 8px',fontSize:14}}>{pendingFile && pendingFile.name}</p>
+            <h3>📁 {t ? t('upload_statement') : 'Upload bank statements'}</h3>
+            <div className={'upload-dropzone' + (dragging ? ' dragging' : '')}
+              onDragEnter={(e)=>{e.preventDefault(); setDragging(true);}}
+              onDragOver={(e)=>{e.preventDefault(); setDragging(true);}}
+              onDragLeave={(e)=>{e.preventDefault(); setDragging(false);}}
+              onDrop={onDropFiles}
+            >
+              Drag & drop files here, or choose files
+              <div style={{marginTop:8}}>
+                <label className="btn btn-xs" aria-label="Choose files to upload">Choose Files
+                  <input type="file" multiple accept=".xlsx,.xls,.csv" style={{display:'none'}} onChange={onFileSelect}/>
+                </label>
+              </div>
+            </div>
+            {!!pendingFiles.length && (
+              <ul className="upload-file-list">
+                {pendingFiles.map((f, idx)=>(
+                  <li key={f.name+'_'+f.size+'_'+idx}>
+                    {f.name} ({Math.round(f.size/1024)} KB)
+                    <button className="btn btn-xs danger" style={{marginLeft:8}} onClick={()=>removeQueuedFile(idx)} disabled={uploading}>Remove</button>
+                  </li>
+                ))}
+              </ul>
+            )}
             <label>Month Tag</label>
             <select value={uploadTag} onChange={e=>setUploadTag(Number(e.target.value))}>
               {[1,2,3,4,5,6,7,8,9,10,11,12].map(m=><option key={m} value={m}>{m} - {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m-1]}</option>)}
             </select>
             <label>Year</label>
             <input type="number" value={uploadYear} onChange={e=>setUploadYear(Number(e.target.value))} min="2000" max="2100"/>
+            <div style={{marginTop:10, padding:'10px', border:'1px dashed #d1c7f7', borderRadius:10}}>
+              <label style={{display:'flex',alignItems:'center',gap:8,margin:0}}>
+                <input type="checkbox" checked={useMapping} onChange={(e)=>setUseMapping(e.target.checked)} />
+                Use manual CSV column mapping (fallback)
+              </label>
+              {useMapping && (
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:8}}>
+                  <input type="number" min="0" value={manualMap.date} onChange={e=>setManualMap(prev=>Object.assign({},prev,{date:e.target.value}))} placeholder="Date col" />
+                  <input type="number" min="0" value={manualMap.name} onChange={e=>setManualMap(prev=>Object.assign({},prev,{name:e.target.value}))} placeholder="Name col" />
+                  <input type="number" min="0" value={manualMap.amount} onChange={e=>setManualMap(prev=>Object.assign({},prev,{amount:e.target.value}))} placeholder="Amount col" />
+                  <input type="number" min="0" value={manualMap.debit} onChange={e=>setManualMap(prev=>Object.assign({},prev,{debit:e.target.value}))} placeholder="Debit col" />
+                </div>
+              )}
+            </div>
+            {uploadStep && <div className="muted" style={{marginTop:10}}>{uploadStep}</div>}
             <div className="modal-actions">
-              <button className="btn" onClick={()=>{setShowUploadModal(false);setPendingFile(null);}} disabled={uploading}>Cancel</button>
-              <button className="btn primary" onClick={doUpload} disabled={uploading}>{uploading?'⏳ Uploading…':'✅ Upload'}</button>
+              <button className="btn" onClick={()=>{setShowUploadModal(false);setPendingFiles([]);}} disabled={uploading}>Cancel</button>
+              <button className="btn primary" onClick={doUpload} disabled={uploading || !pendingFiles.length}>{uploading?'⏳ Uploading…':'✅ Upload'}</button>
             </div>
           </div>
         </div>
       )}
       {msg && <div className="toast-bar">{msg}</div>}
+      {!!uploadReport.length && (
+        <div className="panel" style={{marginBottom:10,padding:'10px 12px'}}>
+          <div style={{fontWeight:700,marginBottom:6}}>Upload Report</div>
+          {uploadReport.map((r,idx)=>(
+            <div key={idx} style={{fontSize:13,color:r.ok?'#166534':'#991b1b'}}>
+              {r.ok ? '✅' : '⚠️'} {r.file || 'Unnamed file'} {r.ok ? ('(' + r.count + ' rows)') : ('- ' + (r.error || 'Failed'))}
+            </div>
+          ))}
+        </div>
+      )}
+      {!hasPastData && !rows.length && (
+        <div className="onboarding-card">
+          <h4>Start Here</h4>
+          <div style={{fontSize:13,color:'#475569',marginBottom:8}}>{t ? t('no_transactions') : 'No transactions yet. Upload your first bank statement to get started.'}</div>
+          <ol style={{margin:'0 0 0 18px',padding:0}}>
+            <li>Create or review categories in the Categories tab.</li>
+            <li>Upload one or more statement files.</li>
+            <li>Review category/type suggestions and click Save All.</li>
+          </ol>
+        </div>
+      )}
       <div className="kpis">
         <div className="kpi k1">Total Transactions<span className="n">{(rows.length)}</span></div>
         <div className="kpi k2">Total Amount<span className="n">₪{fmt2(totalSigned)}</span></div>
@@ -872,12 +1100,13 @@ function TransactionsTab({rows,setRows,categories,onSaved}){
           <button className="btn btn-xs" onClick={()=>setQ('')}>Clear</button>
         </div>
         <div className="right" style={{display:'flex',alignItems:'center',gap:8}}>
-          <label className="btn">📁 Upload
-            <input type="file" accept=".xlsx,.xls,.csv" style={{display:'none'}} onChange={onFileSelect}/>
+          <label className="btn" aria-label={t ? t('upload_statement') : 'Upload bank statement'}>
+            📁 {t ? t('upload_statement') : 'Upload'} <span className="tooltip" title={t ? t('privacy_upload') : 'Upload CSV/XLS/XLSX up to 12MB each. Files are parsed and only saved when you click Save All.'}>?</span>
+            <input type="file" multiple accept=".xlsx,.xls,.csv" style={{display:'none'}} onChange={onFileSelect}/>
           </label>
-          <button className="btn" onClick={addManual}>+ Add Manual Row</button>
-          <button className="btn danger" style={{marginLeft:10}} onClick={deleteAllTransactions}>🗑️ Delete All</button>
-          <button className="btn primary" onClick={saveAll}>💾 Save All</button>
+          <button className="btn" onClick={addManual}>+ {t ? t('add_manual') : 'Add Manual Row'}</button>
+          <button className="btn danger" style={{marginLeft:10}} onClick={deleteAllTransactions}>🗑️ {t ? t('delete_all') : 'Delete All'}</button>
+          <button className="btn primary" onClick={saveAll}>💾 {t ? t('save_all') : 'Save All'}</button>
         </div>
       </div>
 
@@ -885,7 +1114,7 @@ function TransactionsTab({rows,setRows,categories,onSaved}){
         <table>
           <thead><tr>
             <th className="nosort">✖</th>
-            {hdr('Tag','tag','w-tag')}
+            <th className="w-tag" onClick={()=>setSort('tag')}>Tag <span className="tooltip" title="Tag is month/year (for example 3/26) used for filtering and reporting.">?</span>{sortKey==='tag'?(sortDir==='asc'?' ↑':' ↓'):' ↑↓'}</th>
             <th className="w-date" onClick={()=>setSort('date')}>Date<br/><span style={{fontSize:'11px',fontWeight:600}}>(DD-MM-YYYY)</span>{sortKey==='date'?(sortDir==='asc'?' ↑':' ↓'):' ↑↓'}</th>
             {hdr('Name','name','w-name')}
             {hdr('Transaction Amount','amount','w-amt')}
@@ -894,7 +1123,7 @@ function TransactionsTab({rows,setRows,categories,onSaved}){
             {hdr('Category','category','w-cat')}
             {hdr('Sub-category','subcategory','w-sub')}
             {hdr('Notes','notes','w-notes')}
-            {hdr('Vi','vi')}
+            <th onClick={()=>setSort('vi')}>Vi <span className="tooltip" title="VI = Verify/Investigate. Mark transactions you want to review later.">?</span>{sortKey==='vi'?(sortDir==='asc'?' ↑':' ↓'):' ↑↓'}</th>
           </tr></thead>
           <tbody>
             {view.length? view.map(r=>{
@@ -904,7 +1133,7 @@ function TransactionsTab({rows,setRows,categories,onSaved}){
               const currencySymbols = { ILS: '₪', USD: '$', EUR: '€', GBP: '£' };
               return (
                 <tr key={id} className={r.vi?'row-vi':''}>
-                  <td style={{width:48}}><button className="btn danger" onClick={()=>delRow(id)}>✖</button></td>
+                  <td style={{width:48}}><button className="btn danger" aria-label={'Delete row ' + (r.name || id)} onClick={()=>delRow(id)}>✖</button></td>
 
                   <td className="w-tag">
                     {manual
@@ -3376,8 +3605,15 @@ function App(){
   const [stage,setStage]=React.useState([]);
   const [settings,setSettings]=React.useState({dateFormat:'YYYY-MM-DD', currency:'ILS'});
   const [dataFilter, setDataFilter]=React.useState(null); // {col, val, col2?, val2?}
+  const [lang, setLang] = React.useState(localStorage.getItem('mt_lang') || 'en');
+  const [showHelpDrawer, setShowHelpDrawer] = React.useState(false);
+  const t = React.useMemo(()=>makeTranslator(lang), [lang]);
 
-  React.useEffect(()=>{ API.logout().catch(()=>{}); },[]);
+  React.useEffect(()=>{
+    document.documentElement.lang = lang;
+    document.documentElement.dir = (lang === 'he' ? 'rtl' : 'ltr');
+    localStorage.setItem('mt_lang', lang);
+  }, [lang]);
 
   function reload(){
     return API.bootstrap().then(d=>{
@@ -3387,6 +3623,9 @@ function App(){
       window.settings = s; // Make available globally for currency toggling
     }).catch(()=>{}));
   }
+  React.useEffect(()=>{
+    API.csrfToken().catch(()=>{}).then(()=>reload().catch(()=>{}));
+  },[]);
   const [dataDirty, setDataDirty] = React.useState(false);
   const [pendingTab, setPendingTab] = React.useState(null);
   const [pendingFilter, setPendingFilter] = React.useState(null);
@@ -3400,6 +3639,7 @@ function App(){
         if(window._loginSetErr) window._loginSetErr(r.error || 'Login failed');
         return; 
       }
+      window.__mtCsrfToken = r.csrfToken || getCookie('mt_csrf') || '';
       setUser(name); setTab('transactions'); return reload(); 
     }).catch(err=>{
       if(window._loginSetErr) window._loginSetErr('Login failed: '+err.message);
@@ -3411,13 +3651,14 @@ function App(){
         if(window._loginSetErr) window._loginSetErr(r.error || 'Sign up failed');
         return; 
       }
+      window.__mtCsrfToken = r.csrfToken || getCookie('mt_csrf') || '';
       setUser(name); setTab('transactions'); return reload(); 
     }).catch(err=>{
       if(window._loginSetErr) window._loginSetErr('Sign up failed: '+err.message);
     }); 
   }
 
-  if(!user) return <LoginView onLogin={doLogin} onSignup={doSignup}/>;
+  if(!user) return <LoginView onLogin={doLogin} onSignup={doSignup} t={t}/>;
   function handleDataDirty(dirty) { dataChangesRef.current = dirty; setDataDirty(dirty); }
 
   function trySetTab(id, filter) {
@@ -3451,10 +3692,37 @@ function App(){
   function tabBtn(id,label,icon){ return <button className={'tab'+(tab===id?' active':'')} onClick={()=>trySetTab(id)}>{icon} {label}</button>; }
   function onSavedTx(){ setStage([]); reload().then(()=> trySetTab('summary')); }
   function navigateToData(filter){ trySetTab('data', filter); }
+  async function exportUserData(){
+    try{
+      const blob = await API.exportData();
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download='moneytron_' + user + '_export.json';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }catch(e){
+      alert('Export failed: ' + e.message);
+    }
+  }
+  async function deleteCurrentAccount(){
+    const password = window.prompt('Confirm account deletion by entering your password:');
+    if(password == null) return;
+    if(!window.confirm('This will permanently delete your account and all data. Continue?')) return;
+    try{
+      await API.deleteAccount(password);
+      setUser(null);
+      setPast([]);
+      setStage([]);
+      setCategories({});
+      alert('Account deleted.');
+    }catch(e){
+      alert('Delete failed: ' + e.message);
+    }
+  }
 
   return (
     <div className="wrap">
-      <h1 className="title">MoneyTron - Multi-User Money Tracker</h1>
+      <h1 className="title">{t('app_title')}</h1>
       {/* Unsaved changes modal */}
       {showUnsavedModal && (
         <div className="modal-overlay" onClick={cancelTabSwitch}>
@@ -3470,7 +3738,17 @@ function App(){
       )}
       <div className="frame">
         <div className="topbar">
-          <div className="pill welcome">Welcome, {user}!</div>
+          <div className="pill welcome">{t('welcome')}, {user}!</div>
+          <label className="ghost btn" style={{display:'inline-flex',alignItems:'center',gap:8}}>
+            {t('lang')}
+            <select value={lang} onChange={e=>setLang(e.target.value)} style={{minWidth:86,padding:'4px 8px'}}>
+              <option value="en">EN</option>
+              <option value="he">HE</option>
+            </select>
+          </label>
+          <button className="ghost btn" onClick={()=>setShowHelpDrawer(true)}>❓ {t('help')}</button>
+          <button className="ghost btn" onClick={exportUserData}>⬇️ {t('export_data')}</button>
+          <button className="ghost btn" onClick={deleteCurrentAccount}>🗑️ {t('delete_account')}</button>
           <button className="ghost btn" onClick={()=>setShowChangePwModal(true)}>🔒 Change Password</button>
           <button className="ghost btn" onClick={()=>{ API.logout().then(()=>setUser(null)); }}>Switch User</button>
         </div>
@@ -3482,15 +3760,31 @@ function App(){
             </div>
           </div>
         )}
+        {showHelpDrawer && (
+          <React.Fragment>
+            <div className="modal-overlay" onClick={()=>setShowHelpDrawer(false)} />
+            <aside className="help-drawer" role="dialog" aria-modal="true" aria-label="Help drawer">
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                <h3>Help & Quick Guide</h3>
+                <button className="btn btn-xs" onClick={()=>setShowHelpDrawer(false)}>Close</button>
+              </div>
+              <div className="help-card"><strong>Upload</strong><p>Use CSV/XLS/XLSX files (up to 12MB each). Drag and drop multiple files in the upload modal.</p></div>
+              <div className="help-card"><strong>Tag</strong><p>Tag groups transactions by month/year for filtering and summary views.</p></div>
+              <div className="help-card"><strong>VI Flag</strong><p>VI means Verify/Investigate. Use it to mark rows that need a second review.</p></div>
+              <div className="help-card"><strong>Save Flow</strong><p>Files are parsed first in staging. Data is committed permanently only after clicking Save All.</p></div>
+              <div className="help-card"><strong>Security</strong><p>Sessions are cookie-based, write actions are CSRF-protected, and each user’s data is isolated.</p></div>
+            </aside>
+          </React.Fragment>
+        )}
         <div className="tabs">
-          {tabBtn('transactions','Transactions','💰')}
-          {tabBtn('summary','Summary','📊')}
-          {tabBtn('statistics','Statistics','📈')}
-          {tabBtn('data','Data','📄')}
-          {tabBtn('categories','Categories','📚')}
-          {tabBtn('tutorial','Tutorial','📖')}
+          {tabBtn('transactions',t('tabs_transactions'),'💰')}
+          {tabBtn('summary',t('tabs_summary'),'📊')}
+          {tabBtn('statistics',t('tabs_statistics'),'📈')}
+          {tabBtn('data',t('tabs_data'),'📄')}
+          {tabBtn('categories',t('tabs_categories'),'📚')}
+          {tabBtn('tutorial',t('tabs_tutorial'),'📖')}
         </div>
-        {tab==='transactions' && <TransactionsTab rows={stage} setRows={setStage} categories={categories} onSaved={onSavedTx}/>}
+        {tab==='transactions' && <TransactionsTab rows={stage} setRows={setStage} categories={categories} onSaved={onSavedTx} t={t} hasPastData={!!past.length}/>}
         {tab==='data' && <DataTab key={dataFilter ? JSON.stringify(dataFilter) : 'default'} past={past} categories={categories} onSaved={(rows)=>{ dataChangesRef.current=false; setDataDirty(false); reload(); }} initialFilter={dataFilter} onDirtyChange={handleDataDirty}/>} 
         {tab==='summary' && <SummaryTab past={past} active={tab==='summary'} onNavigateToData={navigateToData}/>} 
         {tab==='categories' && <CategoriesTab user={user} categories={categories} onSaved={setCategories}/>} 
