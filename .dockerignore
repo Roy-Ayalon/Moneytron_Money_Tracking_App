@@ -8,6 +8,8 @@ build/
 *.spec
 nul
 *.log
+.venv/
+venv/
 
 # Temp claude files
 tmpclaude-*
@@ -32,3 +34,6 @@ start.bat
 start.command
 deploy.ps1
 deploy.sh
+
+# Local-only test data
+tests/

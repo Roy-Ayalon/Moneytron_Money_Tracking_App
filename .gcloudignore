@@ -17,6 +17,8 @@ build/
 *.spec
 nul
 *.log
+.venv/
+venv/
 
 # Git
 .git/
@@ -40,3 +42,6 @@ start.command
 
 # Deploy scripts (not needed in container)
 deploy.sh
+
+# Local-only test data
+tests/
