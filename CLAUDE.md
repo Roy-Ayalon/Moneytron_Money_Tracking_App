@@ -140,12 +140,37 @@ Writes use an atomic temp-file-then-rename pattern. User paths are sanitized via
 
 ## Deployment
 
+Docker image: multi-stage Node 20-alpine (Vite build) → python:3.11-slim (runtime). Gunicorn serves the app via `new_app:app`.
+
+### GCP project
+- Project ID: `moneytron-488817` (personal Google account — unrelated to MedFlow/medflowlabs-dev)
+- Service URL: `https://moneytron-wkanob3jka-ew.a.run.app/`
+- User data bucket: `moneytron-data-moneytron-488817` (GCS, mounted at `/app/users`) — **never touch this**
+- The deploy script outputs a numeric-format URL at the end — ignore it, the real URL above is correct
+
+### Redeploy after code changes
 ```bash
-./deploy.sh            # full GCP Cloud Run setup (first time)
-./deploy.sh -SkipSetup # redeploy after changes
+gcloud config set project moneytron-488817
+MONEYTRON_PROJECT_ID=moneytron-488817 bash deploy.sh -SkipSetup
+```
+- `gcloud config set project` is required — the script reads the active project via `gcloud config get-value project`, not just the env var
+- The `bad substitution` warning at the end is harmless (macOS bash 3 + monitoring script) — deploy succeeds regardless
+
+### First-time setup
+```bash
+gcloud config set project moneytron-488817
+MONEYTRON_PROJECT_ID=moneytron-488817 bash deploy.sh
 ```
 
-Docker image: multi-stage Node 20-alpine (Vite build) → python:3.11-slim (runtime). Gunicorn serves the app via `new_app:app`.
+### Branch → deploy workflow
+1. Work and commit on `beta-launch`
+2. Fast-forward merge to `main`: `git checkout main && git merge beta-launch --ff-only && git push origin main`
+3. Switch back: `git checkout beta-launch` — branches stay aligned after a FF merge
+4. Deploy (Cloud Build reads from local working tree, not GitHub — branch name doesn't matter to the build)
+
+### User impact on deploy
+- **Data:** safe — GCS bucket is mounted at `/app/users` and is untouched by container redeployments
+- **Sessions:** lost — Flask sessions are in-memory; active users must re-login once after a new revision goes live (unavoidable with current architecture)
 
 ---
 
@@ -180,6 +205,8 @@ Do not modify these files without explicit approval:
 - Do NOT restart the server after editing .md files or non-app files.
 
 ## Known Pitfalls
+- Vite builds JS/CSS to `/assets/...` (absolute paths). Flask must have the `/assets/<filename>` route in `app.py` or the SPA loads a blank page. Already in place — do not remove it.
+- `users/` is gitignored but files inside it may still be tracked if they were committed before the rule was added. Always run `git ls-files users/` before any git operation involving user data; untrack with `git rm --cached` if needed.
 - Sorting logic is fully duplicated between TransactionsTab and DataTab. Any sort fix must be applied in both files.
 - `vi=true` maps to value `0` in the sort comparator (sorts first ascending). Fixed 2025-04.
 - Server entry point is `server/new_app.py`, not `app.py`. Routes live in `app.py` but the process is `new_app.py`. Run `ps aux | grep python` to confirm.
@@ -188,6 +215,9 @@ Do not modify these files without explicit approval:
 - `getCookie` must be imported from `utils.js` in components that call raw `fetch()` with CSRF (FeedbackButton, TransactionsTab).
 
 ## What Not To Do
+- Do not commit anything inside `users/` — all live user data is in the GCS bucket and must never be tracked in git.
+- Do not touch the GCS bucket (`moneytron-data-moneytron-488817`) during deployments — it holds all live user data and Cloud Run mounts it automatically.
+- Do not change the active gcloud project away from `moneytron-488817` when working on this repo — `medflowlabs-dev` is a completely separate MedFlow project on a different account.
 - Do not fix related issues that were not explicitly requested. Report them separately.
 - Do not add CDN script tags — all JS is bundled by Vite.
 - Do not use `window.Chart` or `window.ChartDataLabels` — import from `chart.js/auto` and `chartjs-plugin-datalabels`.
@@ -212,6 +242,7 @@ Do not modify these files without explicit approval:
 - For a blank page at localhost:5173, ask for a DevTools console screenshot immediately — do not guess. The console shows the exact error in seconds (e.g. `/api.js 404` from an overly broad Vite proxy rule).
 - Before editing a CSS property, grep for ALL rules targeting the same selector in the file. A later rule (e.g. `/* Polish Overrides */`) will silently win — change the last one, not the first.
 - The Vite proxy key `'/api'` matches any path starting with those 4 characters, including `/api.js`. Always use `'^/api/'` (regex with trailing slash) to limit proxy scope to actual API routes.
+- A blank white page on Cloud Run means static assets are 404ing — open DevTools → Network tab immediately to see which file is missing, then check the Flask route list in `app.py`. Do not redeploy blindly.
 
 ---
 
