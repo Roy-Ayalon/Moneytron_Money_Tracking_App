@@ -21,8 +21,13 @@ spec.loader.exec_module(app_module)
 class UploadAmountFlowTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        app_module.USERS_DIR = Path(self.tmp.name).resolve()
-        app_module.USERS_DIR.mkdir(parents=True, exist_ok=True)
+        tmp_path = Path(self.tmp.name).resolve()
+        tmp_path.mkdir(parents=True, exist_ok=True)
+        app_module.USERS_DIR = tmp_path
+        # storage.py owns the USERS_DIR that the helper functions actually read
+        storage_mod = sys.modules.get("storage")
+        if storage_mod:
+            storage_mod.USERS_DIR = tmp_path
         self.client = app_module.app.test_client()
 
         res = self.client.post(

@@ -401,6 +401,7 @@ function makeTranslator(lang){
 }
 
 /* ---------- Feedback / Improvements Button (always visible) ---------- */
+/* === FeedbackButton START === */
 function FeedbackButton(){
   const [showModal, setShowModal] = React.useState(false);
   const [feedbackText, setFeedbackText] = React.useState('');
@@ -556,6 +557,7 @@ var API=(function(){
     changePassword:(old_password,new_password)=>f('POST','/change-password',{old_password,new_password}).then(j),
     getCategories:()=>f('GET','/categories').then(j),
     saveCategories:(c)=>f('POST','/categories',{categories:c}).then(j),
+    renameCategory:(type,oldName,newName,category)=>f('POST','/rename-category',{type,old_name:oldName,new_name:newName,category}).then(j),
     getStage:()=>f('GET','/current-month').then(j),
     saveStage:(rows)=>f('POST','/current-month',{transactions:rows}).then(j),
     getPast:()=>f('GET','/past-data').then(j),
@@ -659,6 +661,7 @@ function parseAmount(v) {
 }
 
 /* ================= Components (unchanged UI) ================= */
+/* === TitleBar START === */
 function TitleBar({user,onSwitch}){ return (
   <div className="topbar">
     <div className="pill welcome">Welcome, {user}!</div>
@@ -666,6 +669,7 @@ function TitleBar({user,onSwitch}){ return (
   </div>
 );}
 
+/* === LoginView START === */
 function LoginView({onLogin, onSignup, t}){
   const nameRef=React.useRef(null);
   const pwRef=React.useRef(null);
@@ -731,16 +735,33 @@ function LoginView({onLogin, onSignup, t}){
 }
 
 /* ---------- Categories ---------- */
-function CategoryCard({cat, subs, onDeleteCat, onAddSub, onDeleteSub, searchQuery}){
+/* === CategoryCard START === */
+function CategoryCard({cat, subs, onDeleteCat, onAddSub, onDeleteSub, onRenameCat, onRenameSub, searchQuery}){
   const [subInput,setSubInput]=React.useState('');
+  const [editingCat,setEditingCat]=React.useState(false);
+  const [catInput,setCatInput]=React.useState('');
+  const [editingSub,setEditingSub]=React.useState(null);
+  const [subRenInput,setSubRenInput]=React.useState('');
   function add(){ if(subInput.trim()){ onAddSub(cat, subInput.trim()); setSubInput(''); } }
+  function commitCatRename(){ const v=catInput.trim(); if(!v||v===cat){setEditingCat(false);return;} onRenameCat&&onRenameCat(cat,v); setEditingCat(false); }
+  function commitSubRename(oldSub){ const v=subRenInput.trim(); if(!v||v===oldSub){setEditingSub(null);return;} onRenameSub&&onRenameSub(cat,oldSub,v); setEditingSub(null); }
   const sq = (searchQuery||'').trim().toLowerCase();
   const catMatch = sq && cat.toLowerCase().includes(sq);
   const subMatch = (s) => sq && String(s).toLowerCase().includes(sq);
   return (
     <div className={'cat-card' + (catMatch ? ' search-highlight' : '')} dir="auto">
       <div className="cat-head">
-        <div className="cat-name" dir="auto">{cat}</div>
+        {editingCat
+          ? <span style={{display:'flex',alignItems:'center',gap:6}}>
+              <input className="input-xs" style={{minWidth:0,width:140,fontWeight:800,fontSize:16}} value={catInput} autoFocus
+                onChange={e=>setCatInput(e.target.value)}
+                onKeyDown={e=>{if(e.key==='Enter')commitCatRename();if(e.key==='Escape')setEditingCat(false);}}/>
+              <button className="btn btn-xs primary" onClick={commitCatRename}>✓</button>
+              <button className="btn btn-xs" onClick={()=>setEditingCat(false)}>✕</button>
+            </span>
+          : <React.Fragment><div className="cat-name" dir="auto" onDoubleClick={()=>{setCatInput(cat);setEditingCat(true);}} title="Double-click to rename" style={{cursor:'pointer'}}>{cat}</div>
+              <button className="btn btn-xs" style={{fontSize:12,padding:'2px 6px'}} title="Rename category" onClick={()=>{setCatInput(cat);setEditingCat(true);}}>✏️</button></React.Fragment>
+        }
         <span className="badge">{(subs||[]).length} subcategories</span>
         <div style={{flex:1}}></div>
         <button className="btn btn-xs danger" onClick={()=>onDeleteCat(cat)}>Delete</button>
@@ -748,8 +769,17 @@ function CategoryCard({cat, subs, onDeleteCat, onAddSub, onDeleteSub, searchQuer
       <div>
         <div>{(!subs || subs.length===0) && <div className="muted">No subcategories yet.</div>}
           {(subs||[]).map(s=>(
-            <span className={'chip' + (subMatch(s) ? ' search-highlight' : '')} key={s} dir="auto">{s}
-              <a href="#" onClick={(e)=>{e.preventDefault(); onDeleteSub(cat,s);}} title="Remove">×</a>
+            <span className={'chip' + (subMatch(s) ? ' search-highlight' : '')} key={s} dir="auto">
+              {editingSub===s
+                ? <React.Fragment><input className="input-xs" style={{minWidth:0,width:100,fontSize:13,padding:'2px 4px'}} value={subRenInput} autoFocus
+                      onChange={e=>setSubRenInput(e.target.value)}
+                      onKeyDown={e=>{if(e.key==='Enter')commitSubRename(s);if(e.key==='Escape')setEditingSub(null);}}/>
+                    <a href="#" onClick={e=>{e.preventDefault();commitSubRename(s);}} title="Save">✓</a>
+                    <a href="#" onClick={e=>{e.preventDefault();setEditingSub(null);}} title="Cancel">✕</a></React.Fragment>
+                : <React.Fragment><span onDoubleClick={()=>{setEditingSub(s);setSubRenInput(s);}} title="Double-click to rename" style={{cursor:'pointer'}}>{s}</span>
+                    <a href="#" onClick={e=>{e.preventDefault();setEditingSub(s);setSubRenInput(s);}} title="Rename" style={{marginRight:2,fontSize:11}}>✏️</a>
+                    <a href="#" onClick={(e)=>{e.preventDefault(); onDeleteSub(cat,s);}} title="Remove">×</a></React.Fragment>
+              }
             </span>
           ))}
         </div>
@@ -761,7 +791,8 @@ function CategoryCard({cat, subs, onDeleteCat, onAddSub, onDeleteSub, searchQuer
     </div>
   );
 }
-function CategoriesTab({user, categories, onSaved}){
+/* === CategoriesTab START === */
+function CategoriesTab({user, categories, onSaved, onRenameApplied}){
   const [cats,setCats]=React.useState(categories||{});
   const [q,setQ]=React.useState(''); const [newCat,setNewCat]=React.useState('');
   React.useEffect(()=>setCats(categories||{}),[categories]);
@@ -773,6 +804,28 @@ function CategoriesTab({user, categories, onSaved}){
   function deleteCategory(c){ if(!confirm('Delete category "'+c+'"?')) return; const n=Object.assign({},cats); delete n[c]; persist(n); }
   function addSub(c,s){ if(!s.trim()) return; const arr=(cats[c]||[]).slice(); if(arr.indexOf(s)!==-1){alert('Sub exists'); return;} arr.push(s); persist(Object.assign({},cats,{[c]:arr})); }
   function delSub(c,s){ persist(Object.assign({},cats,{[c]:(cats[c]||[]).filter(x=>x!==s)})); }
+  function renameCategory(oldName,newName){
+    if(cats[newName]){alert('Category "'+newName+'" already exists');return;}
+    API.renameCategory('category',oldName,newName,null)
+      .then(res=>{
+        if(!res.ok){alert(res.error||'Rename failed');return;}
+        const next={}; Object.keys(cats).forEach(k=>{next[k===oldName?newName:k]=cats[k];});
+        persist(next);
+        onRenameApplied&&onRenameApplied('category',oldName,newName,null);
+      })
+      .catch(e=>alert('Rename failed: '+e.message));
+  }
+  function renameSub(catName,oldSub,newSub){
+    const subs=cats[catName]||[];
+    if(subs.includes(newSub)){alert('Subcategory "'+newSub+'" already exists');return;}
+    API.renameCategory('subcategory',oldSub,newSub,catName)
+      .then(res=>{
+        if(!res.ok){alert(res.error||'Rename failed');return;}
+        persist(Object.assign({},cats,{[catName]:subs.map(s=>s===oldSub?newSub:s)}));
+        onRenameApplied&&onRenameApplied('subcategory',oldSub,newSub,catName);
+      })
+      .catch(e=>alert('Rename failed: '+e.message));
+  }
   const filtered=React.useMemo(()=>{ const x=q.trim().toLowerCase(); if(!x) return names; return names.filter(c=>c.toLowerCase().includes(x) || (cats[c]||[]).some(s=>String(s).toLowerCase().includes(x))); },[q,names,cats]);
   return (
     <React.Fragment>
@@ -791,13 +844,14 @@ function CategoriesTab({user, categories, onSaved}){
       </div>
       <div className="cat-grid">
         {filtered.length===0 && <div className="panel" style={{gridColumn:'1 / -1'}}>No categories match your search.</div>}
-        {filtered.map(c=><CategoryCard key={c} cat={c} subs={cats[c]||[]} onDeleteCat={deleteCategory} onAddSub={addSub} onDeleteSub={delSub} searchQuery={q}/>)}
+        {filtered.map(c=><CategoryCard key={c} cat={c} subs={cats[c]||[]} onDeleteCat={deleteCategory} onAddSub={addSub} onDeleteSub={delSub} onRenameCat={renameCategory} onRenameSub={renameSub} searchQuery={q}/>)}
       </div>
     </React.Fragment>
   );
 }
 
 /* ---------- Transactions ---------- */
+/* === TransactionsTab START === */
 function TransactionsTab({rows,setRows,categories,onSaved,t,hasPastData}){
   const [msg,setMsg]=React.useState(''); const [sortKey,setSortKey]=React.useState('date'); const [sortDir,setSortDir]=React.useState('desc');
   const [q,setQ]=React.useState('');
@@ -958,11 +1012,11 @@ function TransactionsTab({rows,setRows,categories,onSaved,t,hasPastData}){
       case 'category':return String(r.category||'').toLowerCase(); 
       case 'subcategory':return String(r.subcategory||'').toLowerCase(); 
       case 'notes':return String(r.notes||'').toLowerCase(); 
-      case 'vi':return r.vi?1:0; 
-      default:return ''; 
-    } 
+      case 'vi':return r.vi?0:1;
+      default:return '';
+    }
   }
-  
+
   // Enhanced search that includes numbers
   const filtered = React.useMemo(() => {
     const x = (q || '').trim().toLowerCase();
@@ -1261,6 +1315,7 @@ function TransactionsTab({rows,setRows,categories,onSaved,t,hasPastData}){
 /* (Keeping as-is for brevity) */
 
 /* ---------- Data (PAST) — with filters for Tag, Category, Sub-category, Name ---------- */
+/* === DataTab START === */
 function DataTab({past,categories,onSaved,initialFilter,onDirtyChange}){
   const [rows,setRows]=React.useState(Array.isArray(past)?past.slice():[]);
   const [q,setQ]=React.useState(''); const [sortKey,setSortKey]=React.useState('date'); const [sortDir,setSortDir]=React.useState('asc'); const [saving,setSaving]=React.useState(false);
@@ -1411,9 +1466,9 @@ function DataTab({past,categories,onSaved,initialFilter,onDirtyChange}){
       case 'category':return String(r.category||'').toLowerCase(); 
       case 'subcategory':return String(r.subcategory||'').toLowerCase(); 
       case 'notes':return String(r.notes||'').toLowerCase(); 
-      case 'vi':return r.vi?1:0; 
-      default:return ''; 
-    } 
+      case 'vi':return r.vi?0:1;
+      default:return '';
+    }
   }
   // Helper: get display tag for a row (e.g. "2/26")
   function getDisplayTag(r) {
@@ -1749,6 +1804,7 @@ function DataTab({past,categories,onSaved,initialFilter,onDirtyChange}){
 }
 
 /* ---------- Summary (charts etc.) ---------- */
+/* === SummaryTab START === */
 function SummaryTab({past,active,onNavigateToData}){
   const [err,setErr]=React.useState(''); const [selectedMonth,setSelectedMonth]=React.useState(''); const [subPieCat,setSubPieCat]=React.useState(''); const [expanded,setExpanded]=React.useState({});
   const [monthRangeStart, setMonthRangeStart] = React.useState(-1); // Starting index for 6-month range (-1 = not initialized yet)
@@ -2141,6 +2197,7 @@ function SummaryTab({past,active,onNavigateToData}){
 }
 
 /* ---------- Statistics Tab ---------- */
+/* === StatisticsTab START === */
 function StatisticsTab({past, categories}){
   // State for user selections
   const [selectedYears, setSelectedYears] = React.useState([]); // array of numbers
@@ -3039,6 +3096,7 @@ function StatisticsTab({past, categories}){
 }
 
 /* ---------- Statistics Pie Chart ---------- */
+/* === StatsPieChart START === */
 function StatsPieChart({statsData, selectedCategories}) {
   const pieRef = React.useRef(null);
   const pieChartRef = React.useRef(null);
@@ -3103,6 +3161,7 @@ function StatsPieChart({statsData, selectedCategories}) {
 }
 
 /* ---------- Settings (renamed, but keeping for backward compatibility - will be hidden) ---------- */
+/* === SettingsTab START === */
 function SettingsTab({ user, past, categories, stage, settings, onReload }){
   const [dateFormat, setDateFormat] = React.useState(settings.dateFormat || 'YYYY-MM-DD');
   const [currency, setCurrency] = React.useState(settings.currency || 'ILS');
@@ -3220,6 +3279,7 @@ function SettingsTab({ user, past, categories, stage, settings, onReload }){
 }
 
 /* ---------- Change Password Form ---------- */
+/* === ChangePasswordForm START === */
 function ChangePasswordForm({onDone}){
   const [oldPw,setOldPw]=React.useState('');
   const [newPw,setNewPw]=React.useState('');
@@ -3252,6 +3312,7 @@ function ChangePasswordForm({onDone}){
 }
 
 /* ---------- Tutorial Tab (Full Guide) ---------- */
+/* === TutorialTab START === */
 function TutorialTab(){
   const [lightboxImg, setLightboxImg] = React.useState(null);
   const [activeSection, setActiveSection] = React.useState('welcome');
@@ -3597,6 +3658,7 @@ function TutorialTab(){
 }
 
 /* ------------------------------- App ------------------------------- */
+/* === App START === */
 function App(){
   const [user,setUser]=React.useState(null);
   const [tab,setTab]=React.useState('transactions');
@@ -3691,6 +3753,16 @@ function App(){
 
   function tabBtn(id,label,icon){ return <button className={'tab'+(tab===id?' active':'')} onClick={()=>trySetTab(id)}>{icon} {label}</button>; }
   function onSavedTx(){ setStage([]); reload().then(()=> trySetTab('summary')); }
+  function handleCategoryRenamed(type, oldName, newName, parentCat){
+    function patchRow(row){
+      if(!row) return row;
+      if(type==='category' && row.category===oldName) return Object.assign({},row,{category:newName});
+      if(type==='subcategory' && row.category===parentCat && row.subcategory===oldName) return Object.assign({},row,{subcategory:newName});
+      return row;
+    }
+    setPast(function(prev){ return prev.map(patchRow); });
+    setStage(function(prev){ return prev.map(patchRow); });
+  }
   function navigateToData(filter){ trySetTab('data', filter); }
   async function exportUserData(){
     try{
@@ -3787,7 +3859,7 @@ function App(){
         {tab==='transactions' && <TransactionsTab rows={stage} setRows={setStage} categories={categories} onSaved={onSavedTx} t={t} hasPastData={!!past.length}/>}
         {tab==='data' && <DataTab key={dataFilter ? JSON.stringify(dataFilter) : 'default'} past={past} categories={categories} onSaved={(rows)=>{ dataChangesRef.current=false; setDataDirty(false); reload(); }} initialFilter={dataFilter} onDirtyChange={handleDataDirty}/>} 
         {tab==='summary' && <SummaryTab past={past} active={tab==='summary'} onNavigateToData={navigateToData}/>} 
-        {tab==='categories' && <CategoriesTab user={user} categories={categories} onSaved={setCategories}/>} 
+        {tab==='categories' && <CategoriesTab user={user} categories={categories} onSaved={setCategories} onRenameApplied={handleCategoryRenamed}/>}
         {tab==='statistics' && <StatisticsTab past={past} categories={categories}/>}
         {tab==='tutorial' && <TutorialTab/>}
       </div>

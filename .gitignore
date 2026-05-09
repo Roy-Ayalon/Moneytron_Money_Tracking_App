@@ -2,11 +2,21 @@
 .venv/
 __pycache__/
 
+# Claude Code local config (private)
+.claude/
+
 # Ignore Users
 users/Roy
 users/
 build/
 *.spec
+
+# Frontend build artifacts
+client/node_modules/
+client/dist/
+
+# Logs
+*.log
 
 # Ignore OS files
 .DS_Store

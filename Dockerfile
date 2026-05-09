@@ -1,4 +1,13 @@
 # ── MoneyTron Cloud Dockerfile ────────────────────────────────────────────────
+FROM node:20-alpine AS frontend-builder
+
+WORKDIR /build/client
+COPY client/package.json client/package-lock.json ./
+RUN npm ci
+COPY client/ ./
+RUN npm run build
+
+# ──────────────────────────────────────────────────────────────────────────────
 FROM python:3.11-slim
 
 # No bytecode / unbuffered logs
@@ -13,7 +22,9 @@ RUN pip install --no-cache-dir -r requirements.txt gunicorn
 
 # Copy application code
 COPY server/ ./server/
-COPY client/ ./client/
+
+# Copy Vite-built frontend
+COPY --from=frontend-builder /build/client/dist/ ./client/dist/
 
 # Copy screenshots & videos so the tutorial tab can render them
 COPY screenshots/ ./screenshots/
@@ -26,6 +37,7 @@ COPY users/ ./users/
 # The PORT env var is set by Cloud Run (defaults to 8080)
 ENV PORT=8080
 ENV MONEYTRON_DATA_DIR=/app/users
+ENV MONEYTRON_CLIENT_DIR=/app/client/dist
 
 EXPOSE 8080
 
@@ -36,4 +48,4 @@ CMD exec gunicorn \
     --threads 4 \
     --timeout 120 \
     --chdir /app/server \
-    app:app
+    new_app:app

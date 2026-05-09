@@ -1,33 +1,24 @@
 # server/app.py
 """
-MoneyTron Flask backend — refactored.
-Business logic lives in modules: ingestion, categorization, analytics, validation.
-This file: routes, auth, file I/O, and startup.
+MoneyTron Flask backend.
+Routes only — auth helpers in auth.py, file I/O in storage.py,
+email in email_util.py, analytics in analytics.py/analytics_legacy.py.
 """
 
-import os
-import sys
 import json
-import hashlib
-import hmac
-import secrets
-import shutil
-import tempfile
-import re
-from collections import defaultdict, deque
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-from threading import RLock
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from datetime import datetime
 import logging
+import os
+import shutil
+import sys
 import time
+from collections import defaultdict, deque
+from datetime import datetime
+from pathlib import Path
+from threading import RLock
+from typing import Any, Dict, List, Optional, Tuple
 
 from flask import Flask, request, jsonify, send_from_directory, abort, make_response
 from werkzeug.exceptions import RequestEntityTooLarge
-import bcrypt
 
 # ── Module imports ───────────────────────────────────────────────────────────
 # Add server/ dir to path so modules can import each other
@@ -46,26 +37,32 @@ from analytics import (
     compute_rollup,
 )
 from validation import validate_transactions
+from storage import (
+    _glock, _sanitize_user, _user_dir, _paths,
+    _read_json, _atomic_write, _ensure_user_files, USERS_DIR,
+)
+from auth import (
+    _check_password, _has_password, _hash_pw_bcrypt,
+    _issue_csrf_token, _set_csrf_cookie, _set_auth_cookies,
+    _clear_auth_cookies, _validate_csrf, COOKIE_SECURE,
+)
+from email_util import _send_feedback_email, FEEDBACK_FILE
 
 # =============================================================================
-# Paths that work in BOTH dev and PyInstaller -- with PERSISTENT users/
+# Paths — USERS_DIR is managed by storage.py; CLIENT_DIR stays here
 # =============================================================================
 if getattr(sys, "frozen", False):
     BUNDLE_DIR = Path(getattr(sys, "_MEIPASS")).resolve()
     APP_DIR    = Path(sys.executable).resolve().parent
     CLIENT_DIR = (BUNDLE_DIR / "client").resolve()
-    USERS_DIR  = (APP_DIR / "users").resolve()
 else:
     SERVER_DIR = Path(__file__).resolve().parent
     ROOT_DIR   = SERVER_DIR.parent
     CLIENT_DIR = (ROOT_DIR / "client").resolve()
-    USERS_DIR  = (ROOT_DIR / "users").resolve()
+    APP_DIR    = ROOT_DIR  # fallback for screenshot/video routes
 
 print(f"[MoneyTron] Serving client from: {CLIENT_DIR}")
 print(f"[MoneyTron] Data dir: {USERS_DIR}")
-
-USERS_DIR = Path(os.environ.get("MONEYTRON_DATA_DIR", USERS_DIR)).resolve()
-USERS_DIR.mkdir(parents=True, exist_ok=True)
 
 # =============================================================================
 # App init
@@ -100,8 +97,6 @@ ALLOWED_ORIGINS = (
     else DEFAULT_ALLOWED_ORIGINS
 )
 
-_default_cookie_secure = "1" if os.environ.get("K_SERVICE") else "0"
-COOKIE_SECURE = os.environ.get("MONEYTRON_COOKIE_SECURE", _default_cookie_secure).strip().lower() not in {"0", "false", "no"}
 CSRF_EXEMPT_PATHS = {
     "/api/login",
     "/api/signup",
@@ -116,7 +111,6 @@ RATE_LIMIT_RULES: Dict[str, Tuple[int, int]] = {
 }
 
 ALLOWED_UPLOAD_EXTENSIONS = {".csv", ".xls", ".xlsx"}
-_glock = RLock()
 _rate_lock = RLock()
 _rate_buckets: Dict[str, deque] = defaultdict(deque)
 
@@ -161,12 +155,6 @@ def _handle_413(_exc):
 # =============================================================================
 # Utilities
 # =============================================================================
-def _sanitize_user(u: str) -> str:
-    u = "".join(ch for ch in (u or "").strip() if ch.isalnum() or ch in ("_", "-", "."))
-    if not u:
-        abort(400, description="Invalid user.")
-    return u
-
 def _require_user() -> str:
     """Cookie-only auth for internet-facing deployments."""
     cookie_user = request.cookies.get("mt_user", "").strip()
@@ -206,160 +194,6 @@ def _rate_limited(path: str) -> Tuple[bool, int]:
             return True, retry_after
         bucket.append(now)
     return False, 0
-
-def _cookie_secure_kwargs() -> Dict[str, Any]:
-    return {
-        "httponly": True,
-        "samesite": "Lax",
-        "secure": COOKIE_SECURE,
-        "path": "/",
-    }
-
-def _issue_csrf_token() -> str:
-    return secrets.token_urlsafe(32)
-
-def _set_csrf_cookie(resp, token: str) -> None:
-    # Not HttpOnly by design: JS reads it and sends it in X-CSRF-Token header.
-    resp.set_cookie(
-        "mt_csrf",
-        token,
-        httponly=False,
-        samesite="Lax",
-        secure=COOKIE_SECURE,
-        path="/",
-    )
-
-def _set_auth_cookies(resp, username: str) -> str:
-    csrf_token = _issue_csrf_token()
-    resp.set_cookie("mt_user", username, **_cookie_secure_kwargs())
-    _set_csrf_cookie(resp, csrf_token)
-    return csrf_token
-
-def _clear_auth_cookies(resp) -> None:
-    resp.delete_cookie("mt_user", path="/")
-    resp.delete_cookie("mt_csrf", path="/")
-
-def _validate_csrf() -> bool:
-    csrf_cookie = request.cookies.get("mt_csrf", "")
-    csrf_header = request.headers.get("X-CSRF-Token", "")
-    if not csrf_cookie or not csrf_header:
-        return False
-    return hmac.compare_digest(csrf_cookie, csrf_header)
-
-def _user_dir(username: str) -> Path:
-    p = (USERS_DIR / username).resolve()
-    if not str(p).startswith(str(USERS_DIR)):
-        abort(400, description="Bad path")
-    return p
-
-def _paths(username: str) -> Dict[str, Path]:
-    udir = _user_dir(username)
-    return {
-        "categories": (udir / "categories.json"),
-        "stage":      (udir / "current_month_transactions.json"),
-        "past":       (udir / "past_data.json"),
-        "settings":   (udir / "settings.json"),
-        "password":   (udir / "password.json"),  # legacy, kept for backward compat
-    }
-
-def _hash_pw_sha256(pw: str) -> str:
-    return hashlib.sha256(pw.encode("utf-8")).hexdigest()
-
-def _hash_pw_bcrypt(pw: str) -> str:
-    return bcrypt.hashpw(pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-
-def _is_sha256_hash(value: str) -> bool:
-    return bool(re.fullmatch(r"[a-fA-F0-9]{64}", value or ""))
-
-def _is_bcrypt_hash(value: str) -> bool:
-    return bool(value and value.startswith("$2"))
-
-def _check_password(username: str, password: str) -> Tuple[bool, bool]:
-    """
-    Returns:
-      (is_valid, should_upgrade_hash)
-    """
-    p = _paths(username)
-
-    # Preferred: settings.json password_hash
-    settings_data = _read_json(p["settings"], {})
-    stored = settings_data.get("password_hash", "")
-    if stored:
-        if _is_bcrypt_hash(stored):
-            try:
-                return bcrypt.checkpw(password.encode("utf-8"), stored.encode("utf-8")), False
-            except ValueError:
-                return False, False
-        if _is_sha256_hash(stored):
-            valid = _hash_pw_sha256(password) == stored
-            return valid, valid
-        return False, False
-
-    # Legacy fallback: password.json hash (sha256)
-    if p["password"].exists():
-        pw_data = _read_json(p["password"], {})
-        stored = pw_data.get("hash", "")
-        if _is_sha256_hash(stored):
-            valid = _hash_pw_sha256(password) == stored
-            return valid, valid
-
-    # No password hash set => open access
-    return True, False
-
-def _has_password(username: str) -> bool:
-    """Check if a user has a password set."""
-    p = _paths(username)
-    settings_data = _read_json(p["settings"], {})
-    if settings_data.get("password_hash", ""):
-        return True
-    if p["password"].exists():
-        pw_data = _read_json(p["password"], {})
-        if pw_data.get("hash", ""):
-            return True
-    return False
-
-def _read_json(path: Path, default: Any) -> Any:
-    if not path.exists():
-        logger.debug(f"File does not exist: {path}")
-        return default
-    try:
-        with path.open("r", encoding="utf-8") as f:
-            data = json.load(f)
-        logger.debug(f"Successfully read {path}: {len(str(data))} chars")
-        return data
-    except Exception as e:
-        logger.error(f"Error reading {path}: {e}")
-        return default
-
-def _atomic_write(path: Path, data: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with _glock:
-        with tempfile.NamedTemporaryFile("w", delete=False, dir=str(path.parent), encoding="utf-8") as tmp:
-            json.dump(data, tmp, ensure_ascii=False, indent=2)
-            tmp.flush()
-            os.fsync(tmp.fileno())
-            tmppath = Path(tmp.name)
-        tmppath.replace(path)
-
-def _ensure_user_files(username: str) -> Dict[str, Path]:
-    p = _paths(username)
-    defaults = {
-        "categories": {},
-        "stage": [],
-        "past": [],
-        "settings": {
-            "dateFormat": "YYYY-MM-DD",
-            "currency": "ILS",
-            "allowedCurrencies": ["ILS", "USD"],
-            "password_hash": "",
-            "email": ""
-        },
-    }
-    if not p["categories"].exists(): _atomic_write(p["categories"], defaults["categories"])
-    if not p["stage"].exists():      _atomic_write(p["stage"],      defaults["stage"])
-    if not p["past"].exists():       _atomic_write(p["past"],       defaults["past"])
-    if not p["settings"].exists():   _atomic_write(p["settings"],   defaults["settings"])
-    return p
 
 # =============================================================================
 # UI & health
@@ -527,6 +361,63 @@ def api_categories():
         abort(400, description="'categories' must be an object {name: [subs...]}")
     _atomic_write(p["categories"], cats)
     return jsonify({"ok": True})
+
+@app.route("/api/rename-category", methods=["POST"])
+def api_rename_category():
+    user = _require_user()
+    p = _ensure_user_files(user)
+    payload = request.get_json(force=True)
+
+    rename_type = payload.get("type", "")
+    old_name    = (payload.get("old_name") or "").strip()
+    new_name    = (payload.get("new_name") or "").strip()
+    parent_cat  = (payload.get("category") or "").strip()
+
+    if rename_type not in ("category", "subcategory"):
+        return jsonify({"ok": False, "error": "type must be 'category' or 'subcategory'"}), 400
+    if not old_name:
+        return jsonify({"ok": False, "error": "old_name is required"}), 400
+    if not new_name:
+        return jsonify({"ok": False, "error": "new_name cannot be empty"}), 400
+    if old_name == new_name:
+        return jsonify({"ok": True, "updated_transactions": 0})
+
+    with _glock:
+        cats  = _read_json(p["categories"], {})
+        stage = _read_json(p["stage"], [])
+        past  = _read_json(p["past"], [])
+
+        if rename_type == "category":
+            if old_name not in cats:
+                return jsonify({"ok": False, "error": f"Category '{old_name}' not found"}), 404
+            if new_name in cats:
+                return jsonify({"ok": False, "error": f"Category '{new_name}' already exists"}), 409
+            cats = {(new_name if k == old_name else k): v for k, v in cats.items()}
+            count = 0
+            for row in stage + past:
+                if isinstance(row, dict) and row.get("category") == old_name:
+                    row["category"] = new_name
+                    count += 1
+        else:
+            if parent_cat not in cats:
+                return jsonify({"ok": False, "error": f"Category '{parent_cat}' not found"}), 404
+            subs = cats[parent_cat]
+            if old_name not in subs:
+                return jsonify({"ok": False, "error": f"Subcategory '{old_name}' not found in '{parent_cat}'"}), 404
+            if new_name in subs:
+                return jsonify({"ok": False, "error": f"Subcategory '{new_name}' already exists in '{parent_cat}'"}), 409
+            cats[parent_cat] = [new_name if s == old_name else s for s in subs]
+            count = 0
+            for row in stage + past:
+                if isinstance(row, dict) and row.get("category") == parent_cat and row.get("subcategory") == old_name:
+                    row["subcategory"] = new_name
+                    count += 1
+
+        _atomic_write(p["categories"], cats)
+        _atomic_write(p["stage"],      stage)
+        _atomic_write(p["past"],       past)
+
+    return jsonify({"ok": True, "updated_transactions": count})
 
 # =============================================================================
 # Current month (Transactions staging)
@@ -1040,49 +931,6 @@ def api_statistics_rollup():
 # =============================================================================
 # Feedback / Send Idea
 # =============================================================================
-FEEDBACK_FILE = USERS_DIR / "_feedback.json"
-FEEDBACK_TARGET_EMAIL = "roy1.ayalon@gmail.com"
-
-def _send_feedback_email(from_email: str, name: str, message: str) -> bool:
-    """Try to send feedback email via SMTP. Returns True on success."""
-    if not from_email:
-        return False
-    try:
-        smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
-        smtp_port = int(os.environ.get("SMTP_PORT", "587"))
-        smtp_user = os.environ.get("SMTP_USER", "")
-        smtp_pass = os.environ.get("SMTP_PASS", "")
-
-        msg = MIMEMultipart()
-        msg["From"] = from_email
-        msg["To"] = FEEDBACK_TARGET_EMAIL
-        msg["Subject"] = f"MoneyTron Feedback from {name}"
-        msg["Reply-To"] = from_email
-
-        body = f"From: {name}\nEmail: {from_email}\n\n{message}"
-        msg.attach(MIMEText(body, "plain", "utf-8"))
-
-        if smtp_user and smtp_pass:
-            with smtplib.SMTP(smtp_host, smtp_port) as server:
-                server.starttls()
-                server.login(smtp_user, smtp_pass)
-                server.send_message(msg)
-            logger.info(f"Feedback email sent from {from_email} to {FEEDBACK_TARGET_EMAIL}")
-            return True
-        else:
-            # No SMTP credentials configured - try localhost sendmail
-            try:
-                with smtplib.SMTP("localhost", 25, timeout=5) as server:
-                    server.send_message(msg)
-                logger.info(f"Feedback email sent via localhost from {from_email}")
-                return True
-            except Exception:
-                logger.warning("No SMTP credentials configured and localhost mail not available")
-                return False
-    except Exception as e:
-        logger.error(f"Failed to send feedback email: {e}")
-        return False
-
 @app.route("/api/feedback", methods=["POST"])
 def api_feedback():
     """
