@@ -208,6 +208,10 @@ def index():
 def client_files(filename: str):
     return send_from_directory(CLIENT_DIR, filename)
 
+@app.route("/assets/<path:filename>")
+def asset_files(filename: str):
+    return send_from_directory(CLIENT_DIR / "assets", filename)
+
 @app.route("/favicon.ico")
 @app.route("/favicon.png")
 def favicon():
