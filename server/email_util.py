@@ -28,7 +28,7 @@ def _send_feedback_email(from_email: str, name: str, message: str) -> bool:
         smtp_pass = os.environ.get("SMTP_PASS", "")
 
         msg = MIMEMultipart()
-        msg["From"] = from_email
+        msg["From"] = smtp_user
         msg["To"] = FEEDBACK_TARGET_EMAIL
         msg["Subject"] = f"MoneyTron Feedback from {name}"
         msg["Reply-To"] = from_email

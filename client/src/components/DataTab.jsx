@@ -444,7 +444,7 @@ export default function DataTab({past,categories,onSaved,initialFilter,onDirtyCh
                 </tr>
               );
             }) : <tr><td colSpan="11" style={{textAlign:'center',color:'#6b7280'}}>No saved data yet.</td></tr>}
-            {view.length > 0 && <tr style={{borderTop:'3px solid #6b46c1',backgroundColor:'#f5f3ff'}}><td></td><td></td><td></td><td style={{fontWeight:800,textAlign:'center',color:'#2c2761'}}>{view.length} rows</td><td></td><td style={{fontWeight:800,textAlign:'center',color:'#2c2761'}}>₪{fmt2(view.reduce((a,r)=>a+Number(r.debit||0),0))}</td><td></td><td></td><td></td><td></td><td></td></tr>}
+            {view.length > 0 && <tr style={{borderTop:'3px solid #6b46c1',backgroundColor:'#f5f3ff'}}><td></td><td></td><td></td><td style={{fontWeight:800,textAlign:'center',color:'#2c2761'}}>{view.length} rows</td><td></td><td style={{fontWeight:800,textAlign:'center',color:'#2c2761'}}>₪{fmt2(view.reduce((a,r)=>{ const d=Number(r.debit||0); return (r.type==='Income'||r.type==='income') ? a-d : a+d; },0))}</td><td></td><td></td><td></td><td></td><td></td></tr>}
           </tbody>
         </table>
       </div>

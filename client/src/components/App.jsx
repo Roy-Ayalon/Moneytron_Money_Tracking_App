@@ -19,6 +19,7 @@ export default function App(){
   const [stage,setStage]=React.useState([]);
   const [settings,setSettings]=React.useState({dateFormat:'YYYY-MM-DD', currency:'ILS'});
   const [dataFilter, setDataFilter]=React.useState(null);
+  const [navCounter, setNavCounter]=React.useState(0);
   const t = React.useMemo(()=>makeTranslator('en'), []);
 
   function reload(){
@@ -94,7 +95,7 @@ export default function App(){
     setPast(function(prev){ return prev.map(patchRow); });
     setStage(function(prev){ return prev.map(patchRow); });
   }
-  function navigateToData(filter){ trySetTab('data', filter); }
+  function navigateToData(filter){ setNavCounter(c=>c+1); trySetTab('data', filter); }
   return (
     <div className="wrap">
       <h1 className="title">{t('app_title')}</h1>
@@ -133,7 +134,7 @@ export default function App(){
           {tabBtn('tutorial',t('tabs_tutorial'),<BookOpen size={16} strokeWidth={2.5}/>)}
         </div>
         {tab==='transactions' && <TransactionsTab rows={stage} setRows={setStage} categories={categories} onSaved={onSavedTx} t={t} hasPastData={!!past.length} past={past}/>}
-        {tab==='data' && <DataTab key={dataFilter ? JSON.stringify(dataFilter) : 'default'} past={past} categories={categories} onSaved={(rows)=>{ dataChangesRef.current=false; setDataDirty(false); reload(); }} initialFilter={dataFilter} onDirtyChange={handleDataDirty}/>}
+        {tab==='data' && <DataTab key={(dataFilter ? JSON.stringify(dataFilter) : 'default') + '_' + navCounter} past={past} categories={categories} onSaved={(rows)=>{ dataChangesRef.current=false; setDataDirty(false); reload(); }} initialFilter={dataFilter} onDirtyChange={handleDataDirty}/>}
         {tab==='summary' && <SummaryTab past={past} active={tab==='summary'} onNavigateToData={navigateToData}/>}
         {tab==='categories' && <CategoriesTab user={user} categories={categories} onSaved={setCategories} onRenameApplied={handleCategoryRenamed}/>}
         {tab==='statistics' && <StatisticsTab past={past} categories={categories}/>}

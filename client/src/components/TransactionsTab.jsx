@@ -4,7 +4,7 @@ import { API } from '../api.js';
 import { fmt2, parseAmount, formatDMY, parseDMYtoISO, asArray, getCookie } from '../utils.js';
 
 export default function TransactionsTab({rows,setRows,categories,onSaved,t,hasPastData,past=[]}){
-  const [msg,setMsg]=React.useState(''); const [sortKey,setSortKey]=React.useState('date'); const [sortDir,setSortDir]=React.useState('desc');
+  const [msg,setMsg]=React.useState(''); const [sortKey,setSortKey]=React.useState('date'); const [sortDir,setSortDir]=React.useState('asc');
   const [q,setQ]=React.useState('');
   // Upload modal state
   const [showUploadModal, setShowUploadModal] = React.useState(false);
@@ -60,8 +60,6 @@ export default function TransactionsTab({rows,setRows,categories,onSaved,t,hasPa
         });
         return next;
       });
-      setUploadTag(dayjs().month()+1);
-      setUploadYear(dayjs().year());
       setShowUploadModal(true);
     }
   }
@@ -458,7 +456,7 @@ export default function TransactionsTab({rows,setRows,categories,onSaved,t,hasPa
                 </tr>
               );
             }) : <tr><td colSpan="11" style={{textAlign:'center',color:'#6b7280'}}>No Transactions Yet</td></tr>}
-            {view.length > 0 && <tr style={{borderTop:'3px solid #6b46c1',backgroundColor:'#f5f3ff'}}><td></td><td></td><td></td><td style={{fontWeight:800,textAlign:'center',color:'#2c2761'}}>{view.length} rows</td><td></td><td style={{fontWeight:800,textAlign:'center',color:'#2c2761'}}>₪{fmt2(view.reduce((a,r)=>a+Number(r.debit||0),0))}</td><td></td><td></td><td></td><td></td><td></td></tr>}
+            {view.length > 0 && <tr style={{borderTop:'3px solid #6b46c1',backgroundColor:'#f5f3ff'}}><td></td><td></td><td></td><td style={{fontWeight:800,textAlign:'center',color:'#2c2761'}}>{view.length} rows</td><td></td><td style={{fontWeight:800,textAlign:'center',color:'#2c2761'}}>₪{fmt2(view.reduce((a,r)=>{ const d=Number(r.debit||0); return (r.type==='Income'||r.type==='income') ? a-d : a+d; },0))}</td><td></td><td></td><td></td><td></td><td></td></tr>}
           </tbody>
         </table>
       </div>

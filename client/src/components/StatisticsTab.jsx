@@ -88,7 +88,6 @@ export default function StatisticsTab({past, categories}){
     const tagMap = {};
     last3.forEach(p => { if (!tagMap[p.year]) tagMap[p.year] = []; tagMap[p.year].push(p.tag); });
     setSelectedYears(years); setTagsByYear(tagMap); setActiveQuickSelect('last3');
-    calculateStatistics('last3');
   }
 
   function quickFilterLast6() {
@@ -100,7 +99,6 @@ export default function StatisticsTab({past, categories}){
     const tagMap = {};
     last6.forEach(p => { if (!tagMap[p.year]) tagMap[p.year] = []; tagMap[p.year].push(p.tag); });
     setSelectedYears(years); setTagsByYear(tagMap); setActiveQuickSelect('last6');
-    calculateStatistics('last6');
   }
 
   function quickFilterAllTime() {
@@ -108,7 +106,6 @@ export default function StatisticsTab({past, categories}){
     const tagMap = {};
     years.forEach(year => { tagMap[year] = availableYearsAndTags[year]; });
     setSelectedYears(years); setTagsByYear(tagMap); setActiveQuickSelect('alltime');
-    calculateStatistics('alltime');
   }
 
   function clearFilters() {

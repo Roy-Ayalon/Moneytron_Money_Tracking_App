@@ -85,7 +85,7 @@ def _atomic_write(path: Path, data: Any) -> None:
 def _ensure_user_files(username: str) -> Dict[str, Path]:
     p = _paths(username)
     defaults = {
-        "categories": {},
+        "categories": {"הכנסות": ["משכורת", "בונוס", "אחר"]},
         "stage": [],
         "past": [],
         "settings": {

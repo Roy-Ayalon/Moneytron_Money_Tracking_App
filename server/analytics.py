@@ -39,7 +39,7 @@ def _parse_tag_year(row):
     except (ValueError, TypeError):
         pass
     if yr == 0:
-        yr = date.today().year
+        return (0, 0)
     return (m, yr)
 
 
@@ -82,7 +82,7 @@ def compute_summary(past_data):
             mio[m] = {"income": 0.0, "outcome": 0.0}
         if inc:
             mio[m]["income"] += d
-        else:
+        elif cat != "הכנסות":
             mio[m]["outcome"] += d
 
         cat = r.get("category") or "Uncategorized"
