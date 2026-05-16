@@ -240,6 +240,7 @@ invoke_step "cloud build" gcloud builds submit --tag "$IMAGE_NAME" .
 # -- Deploy to Cloud Run ------------------------------------------------------
 echo "[DEPLOY] Deploying to Cloud Run..."
 ENV_VARS="MONEYTRON_DATA_DIR=/app/users,MONEYTRON_COOKIE_SECURE=${COOKIE_SECURE},MONEYTRON_MAX_UPLOAD_MB=${MAX_UPLOAD_MB}"
+ENV_VARS="${ENV_VARS},SMTP_HOST=smtp.gmail.com,SMTP_PORT=587,SMTP_USER=roy1.ayalon@gmail.com"
 if [[ -n "$ALLOWED_ORIGINS" ]]; then
   ENV_VARS="${ENV_VARS},MONEYTRON_ALLOWED_ORIGINS=${ALLOWED_ORIGINS}"
 fi
@@ -254,6 +255,7 @@ invoke_step "cloud run deploy" gcloud run deploy "$SERVICE_NAME" \
     --min-instances 0 \
     --max-instances 3 \
     --set-env-vars "$ENV_VARS" \
+    --set-secrets "SMTP_PASS=moneytron-smtp-pass:latest" \
     --execution-environment gen2 \
     --clear-volumes \
     --clear-volume-mounts \
