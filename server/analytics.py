@@ -77,6 +77,8 @@ def compute_summary(past_data):
             pass
 
         inc = str(r.get("type", "")).lower() == "income"
+        cat = r.get("category") or "Uncategorized"
+        sub = r.get("subcategory") or "—"  # em-dash
 
         if m not in mio:
             mio[m] = {"income": 0.0, "outcome": 0.0}
@@ -84,9 +86,6 @@ def compute_summary(past_data):
             mio[m]["income"] += d
         elif cat != "הכנסות":
             mio[m]["outcome"] += d
-
-        cat = r.get("category") or "Uncategorized"
-        sub = r.get("subcategory") or "\u2014"  # em-dash
 
         if m not in mcd_all:
             mcd_all[m] = {}
